@@ -15,7 +15,7 @@ class Users(BaseModel, table=True):
     hashed_password: str
     is_active: bool = Field(default=True)
     is_superuser: bool = Field(default=False)
-
+    assessment_attempts: List["AssessmentAttempt"] = Relationship(back_populates="user")
     projects: List["Projects"] = Relationship(back_populates="owner")
 
 class Projects(BaseModel, table=True):
@@ -30,6 +30,10 @@ class Projects(BaseModel, table=True):
     materials: List["LearningMaterials"] = Relationship(back_populates="project")
     questions: List["Questions"] = Relationship(back_populates="project")
     assignments: List["Assignments"] = Relationship(back_populates="project")
+    curriculums: List["Curriculums"] = Relationship(back_populates="project")
+    ai_sources: List["AIGeneratedSources"] = Relationship(back_populates="project")
+    ai_logs: List["AIUsageLogs"] = Relationship(back_populates="project")
+    assessment_attempts: List["AssessmentAttempt"] = Relationship(back_populates="project")
 
 class LearningMaterials(BaseModel, table=True):
     __tablename__ = "learning_materials"
@@ -51,6 +55,7 @@ class Criteria(BaseModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     name: str
     description: Optional[str] = None
+    weight: Optional[float] = Field(default=1.0)
 
     questions: List["Questions"] = Relationship(back_populates="criteria")
 
@@ -61,14 +66,16 @@ class Questions(BaseModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     project_id: uuid.UUID = Field(foreign_key="projects.id")
     criteria_id: uuid.UUID = Field(foreign_key="criteria.id")
+    assignments_id: uuid.UUID = Field(foreign_key="assignment.id")
 
     content: str
-    generated_by: str = Field(default="ai")
+    generated_by: str = Field(default="ai") 
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     project: Projects = Relationship(back_populates="questions")
     criteria: Criteria = Relationship(back_populates="questions")
     answers: List["Answers"] = Relationship(back_populates="question")
+    assignment: Optional["Assignments"] = Relationship(back_populates="questions")
 
 
 class Answers(BaseModel, table=True):
@@ -77,11 +84,15 @@ class Answers(BaseModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     question_id: uuid.UUID = Field(foreign_key="questions.id")
     user_id: uuid.UUID = Field(foreign_key="users.id")
+    attempt_id: uuid.UUID = Field(
+    foreign_key="assessment_attempts.id",
+    nullable=False )
 
     score: int = Field(ge=1, le=5)
     answered_at: datetime = Field(default_factory=datetime.utcnow)
 
     question: Questions = Relationship(back_populates="answers")
+    attempt: "AssessmentAttempt" = Relationship(back_populates="answers")
 
 
 class AssessmentResults(BaseModel, table=True):
@@ -107,7 +118,10 @@ class AIAnalysis(BaseModel, table=True):
     )
 
     analysis_text: str
+    strengths: Optional[str] = None
+    weaknesses: Optional[str] = None
     recommendations: Optional[str] = None
+    generated_by: str = Field(default="ai")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     result: AssessmentResults = Relationship(back_populates="analysis")
@@ -122,9 +136,9 @@ class Assignments(BaseModel, table=True):
     title: str
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
-
     project: Projects = Relationship(back_populates="assignments")
     submissions: List["CodeSubmissions"] = Relationship(back_populates="assignment")
+    questions: List["Questions"] = Relationship(back_populates="assignment")
 
 
 class CodeSubmissions(BaseModel, table=True):
@@ -225,7 +239,27 @@ class AIUsageLogs(BaseModel, table=True):
 
     action_type: str
     tokens_used: Optional[int] = None
+    model_name: Optional[str] = None
+    cost_amount: Optional[float] = None
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     project: Optional[Projects] = Relationship(back_populates="ai_logs")
+
+class AssessmentAttempt(BaseModel, table=True):
+    __tablename__ = "assessment_attempts"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+
+    user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False)
+    project_id: uuid.UUID = Field(foreign_key="projects.id", nullable=False)
+    answers: List["Answers"] = Relationship(back_populates="attempt")
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    submitted_at: Optional[datetime] = None
+
+    time_limit_minutes: Optional[int] = None
+
+    is_submitted: bool = Field(default=False)
+    is_time_up: bool = Field(default=False)
+    project: Projects = Relationship(back_populates="assessment_attempts")
+    user: Users = Relationship(back_populates="assessment_attempts")

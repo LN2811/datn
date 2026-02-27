@@ -1,117 +1,121 @@
 import uuid
-from datetime import datetime
-from fastapi import HTTPException, Request
+from typing import Any
+
+from fastapi import HTTPException
 from sqlmodel import Session, asc, desc, func, or_, select
-from app.models.schemas.users.user_schemas import UserCreate, UserUpdate, DeleteUser
+
+from app.models.models import Users
+
 
 class UserService:
-    def __init__(self):
-        self.author = Author()
-    
-    def get_user(self, session: Session, query_params: QueryParams, request: Request
-    )-> UserPublic:
-        page_size = query_params.page_size
-        page_index = query_params.page_index
-        sort_by = query_params.sort_by
-        sort_order = query_params.sort_order
-        search = query_params.search
+    @staticmethod
+    def _dump_payload(schema_obj: Any) -> dict:
+        if hasattr(schema_obj, "model_dump"):
+            return schema_obj.model_dump(exclude_unset=True)
+        if hasattr(schema_obj, "dict"):
+            return schema_obj.dict(exclude_unset=True)
+        return {}
 
-        statement = (
-            select(Users)
-            .where(Users.is_deleted.is_(False))
-        )
+    def get_user(
+        self,
+        *,
+        session: Session,
+        page_size: int = 20,
+        page_index: int = 1,
+        sort_by: str = "email",
+        sort_order: str = "asc",
+        search: str | None = None,
+    ) -> dict:
+        page_size = max(1, min(page_size, 100))
+        page_index = max(1, page_index)
 
+        statement = select(Users)
         if search:
             search = search.replace("%", "\\%").replace("_", "\\_")
-            filter_clause = or_(
-                Users.name.ilike(f"%{search}%"),
-                Users.email.ilike(f"%{search}%")
-            )
-            statement = statement.where(filter_clause)
-        
+            filters = [Users.email.ilike(f"%{search}%")]
+            if hasattr(Users, "name"):
+                filters.append(getattr(Users, "name").ilike(f"%{search}%"))
+            statement = statement.where(or_(*filters))
+
         count_statement = select(func.count()).select_from(statement.subquery())
-        count = session.exec(count_statement).scalar_one()
+        count = session.exec(count_statement).one()
 
-        max page_index = (count - 1) // page_size + 1 if count > 0 else 1
-        if page_index > max_page_index:
-            page_index = max_page_index
+        sort_column = getattr(Users, sort_by, Users.email)
+        order_by_clause = asc(sort_column) if sort_order.lower() == "asc" else desc(sort_column)
 
-        order_by_clause = asc(getattr(Users, sort_by)) if sort_order == "asc" else desc(getattr(Users, sort_by))
+        users = session.exec(
+            statement.order_by(order_by_clause).offset((page_index - 1) * page_size).limit(page_size)
+        ).all()
+        return {"data": users, "count": count}
 
-        if sort_by and sort_order:
-            sort_column = getattr(Users, sort_by, None)
-            if sort_column:
-                order_by_column = [asc(sort_column) if sort_order == "asc" else desc(sort_column)]
-
-        statement = statement.order_by(*order_by_clause)
-        statement = statement.offset((page_index - 1) * page_size).limit(page_size)
-        users = session.exec(statement).all()
-        return UsersPublic(data=users, count = count)
-
-    def get_by_id(self, *, session: Session, user_id: uuid.UUID, request: Request) 
-    -> UsersPublic:
+    def get_by_id(self, *, session: Session, user_id: uuid.UUID):
         user = session.get(Users, user_id)
-        if not user or user.is_deleted:
+        if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        return UsersPublic.from_orm(user)
-    
-    def create_user(self, *, session: Session, user_in: UserCreate, request: Request) -> UsersPublic:
-        authorized = self.author.is_authorized(request = request)
-        existing_email = session.exec(
-            select(Users).where(Users.email == user_in.email, Users.is_deleted.is_(False))
-        ).first()
+        return user
+
+    def create_user(self, *, session: Session, user_in: Any):
+        payload = self._dump_payload(user_in)
+        email = payload.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
+
+        existing_email = session.exec(select(Users).where(Users.email == email)).first()
         if existing_email:
             raise HTTPException(status_code=400, detail="Email already exists")
-        user_data = user_in.dict()
-        user_data["hashed_password"] = pwd_context.hash(user_in.password)
-        user_data["created_by_id"] = authorized.get("id")
-        
-        new_user = Users(**user_data)
+
+        hashed_password = payload.get("hashed_password") or payload.get("password")
+        if not hashed_password:
+            raise HTTPException(status_code=400, detail="Password is required")
+
+        new_user = Users(
+            email=email,
+            hashed_password=hashed_password,
+            is_active=payload.get("is_active", True),
+            is_superuser=payload.get("is_superuser", payload.get("is_admin", False)),
+        )
         session.add(new_user)
         session.commit()
         session.refresh(new_user)
-        return UsersPublic.model_validate(new_user)
+        return new_user
 
-    def update_user(self, *, session: Session, user_id: uuid.UUID, user_in: UserUpdate, request: Request) -> UsersPublic:
+    def update_user(self, *, session: Session, user_id: uuid.UUID, user_in: Any):
         user = session.get(Users, user_id)
-        authorized = self.author.is_authorized(request = request)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        if authorized["role"] != "admin" and authorized["id"] != user_id:
-            raise HTTPException(status_code=403, detail="Not authorized to update this user")
-        update_data = user_in.dict(exclude_unset=True)
 
-        if "email" in update_data:
+        update_data = self._dump_payload(user_in)
+        if "email" in update_data and update_data["email"] != user.email:
             existing_email = session.exec(
-                select(Users).where(Users.email == update_data["email"], Users.id != user_id, Users.is_deleted.is_(False))
+                select(Users).where(
+                    Users.email == update_data["email"],
+                    Users.id != user_id,
+                )
             ).first()
             if existing_email:
                 raise HTTPException(status_code=400, detail="Email already exists")
 
-        if "password" in update_data:
-            update_data["hashed_password"] = pwd_context.hash(update_data.pop("password"))
-            del update_data["password"]
+        if "password" in update_data and "hashed_password" not in update_data:
+            update_data["hashed_password"] = update_data.pop("password")
 
         for field, value in update_data.items():
-            setattr(user, field, value)
+            if hasattr(user, field):
+                setattr(user, field, value)
 
         session.add(user)
         session.commit()
         session.refresh(user)
-        return UsersPublic.model_validate(user)
+        return user
 
-
-    def delete_user(self, *, session: Session, user_id: uuid.UUID, request: Request) -> DeleteUser:
+    def delete_user(self, *, session: Session, user_id: uuid.UUID) -> dict:
         user = session.get(Users, user_id)
-        authorized = self.author.is_authorized(request = request)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
-        if authorized["role"] != "admin" and authorized["id"] != user_id:
-            raise HTTPException(status_code=403, detail="Not authorized to delete this user")
-        user.is_deleted = True
-        session.add(user)
+
+        if hasattr(user, "is_deleted"):
+            user.is_deleted = True
+            session.add(user)
+        else:
+            session.delete(user)
         session.commit()
-        return DeleteUser(id=user_id, message="User deleted successfully")
-
-
-        
+        return {"id": str(user_id), "message": "User deleted successfully"}

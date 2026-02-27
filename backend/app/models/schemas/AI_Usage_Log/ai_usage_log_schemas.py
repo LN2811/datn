@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from sqlmodel import SQLModel, Field
 
 class AIUsageLogBase(SQLModel):
@@ -16,6 +16,8 @@ class AIUsageLogBase(SQLModel):
     )
     action_type: str = Field(nullable=False)
     tokens_used: Optional[int] = None
+    model_name: Optional[str] = None
+    cost_amount: Optional[float] = None
     created_at: Optional[datetime] = Field(
         default_factory=datetime.utcnow
     )
@@ -26,10 +28,8 @@ class AIUsageLogCreate(AIUsageLogBase):
 class AIUsageLogUpdate(SQLModel):
     action_type: Optional[str] = None
     tokens_used: Optional[int] = None
-    updated_at: Optional[datetime] = Field(
-        default_factory=datetime.utcnow,
-        nullable=True
-    )
+    model_name: Optional[str] = None
+    cost_amount: Optional[float] = None
 
 class DeleteAIUsageLog(SQLModel):
     id: uuid.UUID

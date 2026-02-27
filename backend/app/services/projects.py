@@ -1,69 +1,111 @@
-import asyncio
-import logging
-from datetime import date
-from fastapi import HTTPException, Request, Depends
-from sqlmodel import and_, asc, desc, func, select, Session
-from uuid import UUID
-from app.models.models import Projects, Users
-from app.models.schemas.projects.project_schemas import ProjectCreate, ProjectUpdate, ProjectsPublic
+import uuid
+from typing import Any
 
-logger = logging.getLogger(__name__)
+from fastapi import HTTPException, Request
+from sqlmodel import Session
+
+from app.models.models import Projects, Users
+
 
 class ProjectService:
-    def__init__(self):
-        self.session = Session()
-    async def create_project(self, project_data: ProjectCreate, request: Request) -> ProjectsPublic:
-        user_id = request.state.user_id
+    @staticmethod
+    def _dump_payload(schema_obj: Any) -> dict:
+        if hasattr(schema_obj, "model_dump"):
+            return schema_obj.model_dump(exclude_unset=True)
+        if hasattr(schema_obj, "dict"):
+            return schema_obj.dict(exclude_unset=True)
+        return {}
+
+    @staticmethod
+    def _resolve_user_id(request: Request | None, user_id: uuid.UUID | None = None) -> uuid.UUID:
+        if user_id is not None:
+            return user_id
+        if request is not None and hasattr(request, "state") and hasattr(request.state, "user_id"):
+            return request.state.user_id
+        raise HTTPException(status_code=401, detail="Missing user context")
+
+    async def create_project(
+        self,
+        *,
+        session: Session,
+        project_data: Any,
+        request: Request | None = None,
+        user_id: uuid.UUID | None = None,
+    ) -> dict:
+        owner_id = self._resolve_user_id(request=request, user_id=user_id)
+        payload = self._dump_payload(project_data)
+
         new_project = Projects(
-            name=project_data.name,
-            account_id=project_data.account_id,
-            user_id=user_id
+            name=payload.get("name"),
+            description=payload.get("description"),
+            owner_id=owner_id,
         )
-        self.session.add(new_project)
-        self.session.commit()
-        self.session.refresh(new_project)
-        user = self.session.get(Users, user_id)
-        return ProjectsPublic(
-            id=new_project.id,
-            name=new_project.name,
-            is_active=new_project.is_active,
-            created_at=new_project.created_at,
-            updated_at=new_project.updated_at,
-            user_id=user.id,
-            user_name=user.name
-        )
-    async def update_project(self, project_id: UUID, project_data: ProjectUpdate, request: Request) -> ProjectsPublic:
-        user_id = request.state.user_id
-        project = self.session.get(Projects, project_id)
+        if not new_project.name:
+            raise HTTPException(status_code=400, detail="Project name is required")
+
+        session.add(new_project)
+        session.commit()
+        session.refresh(new_project)
+
+        owner = session.get(Users, owner_id)
+        return {
+            "id": str(new_project.id),
+            "name": new_project.name,
+            "description": new_project.description,
+            "owner_id": str(new_project.owner_id),
+            "owner_email": owner.email if owner else None,
+        }
+
+    async def update_project(
+        self,
+        *,
+        session: Session,
+        project_id: uuid.UUID,
+        project_data: Any,
+        request: Request | None = None,
+        user_id: uuid.UUID | None = None,
+    ) -> dict:
+        current_user_id = self._resolve_user_id(request=request, user_id=user_id)
+        project = session.get(Projects, project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
-        if project.user_id != user_id:
+        if project.owner_id != current_user_id:
             raise HTTPException(status_code=403, detail="Not authorized to update this project")
-        if project_data.name is not None:
-            project.name = project_data.name
-        if project_data.is_active is not None:
-            project.is_active = project_data.is_active
-        project.updated_at = func.now()
-        self.session.add(project)
-        self.session.commit()
-        self.session.refresh(project)
-        user = self.session.get(Users, user_id)
-        return ProjectsPublic(
-            id=project.id,
-            name=project.name,
-            is_active=project.is_active,
-            created_at=project.created_at,
-            updated_at=project.updated_at,
-            user_id=user.id,
-            user_name=user.name
-        )
-    async def delete_project(self, project_id: UUID, request: Request) -> str:
-        user_id = request.state.user_id
-        project = self.session.get(Projects, project_id)
+
+        payload = self._dump_payload(project_data)
+        if payload.get("name") is not None:
+            project.name = payload["name"]
+        if payload.get("description") is not None and hasattr(project, "description"):
+            project.description = payload["description"]
+
+        session.add(project)
+        session.commit()
+        session.refresh(project)
+
+        owner = session.get(Users, current_user_id)
+        return {
+            "id": str(project.id),
+            "name": project.name,
+            "description": project.description,
+            "owner_id": str(project.owner_id),
+            "owner_email": owner.email if owner else None,
+        }
+
+    async def delete_project(
+        self,
+        *,
+        session: Session,
+        project_id: uuid.UUID,
+        request: Request | None = None,
+        user_id: uuid.UUID | None = None,
+    ) -> dict:
+        current_user_id = self._resolve_user_id(request=request, user_id=user_id)
+        project = session.get(Projects, project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
-        if project.user_id != user_id:
+        if project.owner_id != current_user_id:
             raise HTTPException(status_code=403, detail="Not authorized to delete this project")
-        self.session.delete(project)
-        self.session.commit()
-        return "Project deleted successfully"
+
+        session.delete(project)
+        session.commit()
+        return {"message": "Project deleted successfully"}

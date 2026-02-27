@@ -1,6 +1,6 @@
 import uuid 
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 from sqlmodel import SQLModel, Field
 
 class AIAnalysisBase(SQLModel):
@@ -27,10 +27,7 @@ class AIAnalysisUpdate(SQLModel):
     strengths: Optional[str] = None
     weaknesses: Optional[str] = None
     recommendations: Optional[str] = None
-    updated_at: Optional[datetime] = Field(
-        default_factory=datetime.utcnow,
-        nullable=True
-    )
+    generated_by: Optional[str] = None
 
 class DeleteAIAnalysis(SQLModel):
     id: uuid.UUID
