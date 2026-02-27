@@ -1,0 +1,44 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r ../requirements.txt
+
+      - name: Install dev tools
+        run: |
+          pip install pytest black ruff
+
+      - name: Run lint
+        run: |
+          ruff check .
+
+      - name: Check format
+        run: |
+          black --check .
+
+      - name: Run tests
+        run: |
+          pytest
