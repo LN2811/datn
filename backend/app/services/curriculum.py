@@ -4,7 +4,7 @@ from sqlmodel import Session, select
 from typing import List
 
 from app.models.models import Curriculums, CurriculumModules, Projects
-from app.models.schemas.curriculum_schemas import (
+from app.models.schemas.Curriculums.curriculum_schemas import (
     CurriculumCreate,
     CurriculumUpdate
 )

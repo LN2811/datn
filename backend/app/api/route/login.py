@@ -1,3 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, responses
-from sqlmodel import Session
-from pydantic import BaseModel, EmailStr
+from fastapi import APIRouter, Response
+
+from app.api.deps import SessionDep
+from app.authen.login import AuthService
+
+router = APIRouter()
+
+@router.post("/login")
+def login(
+    email: str,
+    password: str,
+    response: Response,
+    session: SessionDep,
+):
+    service = AuthService(session)
+    result = service.login(email, password)
+    response.set_cookie(
+        key="token",
+        value=result["access_token"],
+        httponly=True,
+        secure=True,
+        samesite="lax",
+    )
+    return {"message": "login successful"}

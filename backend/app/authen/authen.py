@@ -1,8 +1,11 @@
-from fastapi import Request, HTTPException, status
+import uuid
+
+from fastapi import HTTPException, Request, status
 from sqlmodel import Session
+
 from app.models.models import Users
-from app.core.database import engine
-from app.core.security import decode_token
+from app.core.db import engine
+from app.core.sercurity import decode_token
 
 
 class Authen:
@@ -27,8 +30,16 @@ class Authen:
                 detail="Invalid token",
             )
 
+        try:
+            user_uuid = uuid.UUID(str(user_id))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token",
+            ) from exc
+
         with Session(engine) as session:
-            user = session.get(Users, user_id)
+            user = session.get(Users, user_uuid)
 
             if not user:
                 raise HTTPException(
@@ -37,13 +48,10 @@ class Authen:
                 )
 
             return user
-    
-    def required_admin(
-        self,
-        request: Request,
-    ) -> Users:
 
-        user = self.get_current_user(request)
+    @staticmethod
+    def require_admin(request: Request) -> Users:
+        user = Authen.get_current_user(request)
 
         if not user.is_superuser:
             raise HTTPException(

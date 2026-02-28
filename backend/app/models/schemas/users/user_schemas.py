@@ -1,43 +1,35 @@
-from datetime import datetime
-from typing import Optional
+import uuid
+from typing import List
 
 from pydantic import EmailStr
-from sqlmodel import SQLModel, Field
+from sqlmodel import Field, SQLModel
 
 
-class UserBase(SQLModel):
-    email: EmailStr = Field(nullable=False, unique=True, index=True, max_length=255)
-    hashed_password: str = Field(nullable=False)
-    is_active: bool = Field(default=True)
-    is_admin: bool = Field(default=False)
-    account_name: str = Field(max_length=255,nullable=False)
-    contact_email: Optional[EmailStr] = Field(default=None,max_length=255)
-    contact_phone: Optional[str] = Field(default=None,max_length=50)
-    pinned_at: Optional[datetime] = Field(default=None,nullable=True)
-    created_at: Optional[datetime] = Field(default_factory=datetime.utcnow,nullable=True)
-    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow,nullable=True)
+class UserPublic(SQLModel):
+    id: uuid.UUID
+    email: EmailStr
+    is_active: bool
+    is_superuser: bool
 
-class UserCreate(UserBase):
-    created_by_id: str = Field(default=None,nullable=True, max_length=255)
-    pass
+
+class UserCreate(SQLModel):
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=8, max_length=255)
+    is_active: bool = True
+    is_superuser: bool = False
+
 
 class UserUpdate(SQLModel):
-    email: Optional[EmailStr] = Field(default=None, max_length=255)
-    hashed_password: Optional[str] = Field(default=None)
-    is_active: Optional[bool] = Field(default=None)
-    is_admin: Optional[bool] = Field(default=None)
-    account_name: Optional[str] = Field(default=None, max_length=255)
-    contact_email: Optional[EmailStr] = Field(default=None, max_length=255)
-    contact_phone: Optional[str] = Field(default=None, max_length=50)
-    pinned_at: Optional[datetime] = Field(default=None, nullable=True)
-    updated_at: Optional[datetime] = Field(default_factory=datetime.utcnow, nullable=True)
+    email: EmailStr | None = Field(default=None, max_length=255)
+    password: str | None = Field(default=None, min_length=8, max_length=255)
+    is_active: bool | None = None
+    is_superuser: bool | None = None
+
 
 class DeleteUser(SQLModel):
     id: uuid.UUID
     message: str
 
-class UserPublic(UserBase):
-    id: uuid.UUID
 
 class UsersPublic(SQLModel):
     data: List[UserPublic]
