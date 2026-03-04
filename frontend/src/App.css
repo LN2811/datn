@@ -1,42 +1,107 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+.auth-shell,
+.dashboard-shell {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card,
+.dashboard-card {
+  width: min(100%, 420px);
+  border: 1px solid #d6e3f1;
+  border-radius: 16px;
+  background-color: #ffffff;
+  box-shadow: 0 16px 32px rgba(16, 38, 61, 0.12);
+  padding: 24px;
+}
+
+.auth-card--compact {
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.auth-title,
+.dashboard-title {
+  margin: 0;
+  font-size: 28px;
+  color: #10263d;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+.auth-muted,
+.dashboard-text {
+  margin: 8px 0 0;
+  color: #4f6780;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  margin-top: 18px;
+  gap: 10px;
+}
+
+.auth-label {
+  font-size: 14px;
+  color: #35506c;
+}
+
+.auth-input {
+  border: 1px solid #c0d1e3;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #10263d;
+  background-color: #fdfefe;
+}
+
+.auth-input:focus {
+  outline: 2px solid #7eb7e0;
+  outline-offset: 1px;
+}
+
+.auth-error {
+  margin: 2px 0;
+  color: #bf1e2e;
+  font-size: 13px;
+}
+
+.auth-button,
+.dashboard-button {
+  margin-top: 8px;
+  border: 0;
+  border-radius: 10px;
+  background-color: #0e6ba8;
+  color: #ffffff;
+  font-weight: 600;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.auth-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.dashboard-button {
+  width: 100%;
+  margin-top: 16px;
+}
+
+.dashboard-button--ghost {
+  background-color: #eaf4fd;
+  color: #0a5280;
+}
+
+@media (max-width: 480px) {
+  .auth-card,
+  .dashboard-card {
+    padding: 20px;
   }
-  to {
-    transform: rotate(360deg);
+
+  .auth-title,
+  .dashboard-title {
+    font-size: 24px;
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
-}
-
-.card {
-  padding: 2em;
-}
-
-.read-the-docs {
-  color: #888;
-}

@@ -1,7 +1,8 @@
 from enum import Enum
 from uuid import UUID
 
-from sqlmodel import Field, SQLModel
+from pydantic import Field
+from sqlmodel import SQLModel
 
 class Message(SQLModel):
     message: str
@@ -15,7 +16,7 @@ class TokenPayload(SQLModel):
 
 class NewPassWord(SQLModel):
     token: str
-    new_password: str = Field(min_lenght = 8, max_lenght =40)
+    new_password: str = Field(min_length=8, max_length=40)
 
 class QueryParams(SQLModel):
     page_size: int = Field(default=10, ge=1, le=100, alias="page_size")

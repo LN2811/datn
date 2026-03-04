@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.db import engine
 
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUr1=f"{settings.API_V1_STR}/login/access-token"
+    tokenUrl=f"{settings.API_V1_STR}/login/access-token"
 )
 def get_db() -> Generator[Session, None, None]:
     with Session(engine) as session:

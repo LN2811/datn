@@ -66,7 +66,7 @@ class Questions(BaseModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     project_id: uuid.UUID = Field(foreign_key="projects.id")
     criteria_id: uuid.UUID = Field(foreign_key="criteria.id")
-    assignments_id: uuid.UUID = Field(foreign_key="assignment.id")
+    assignments_id: uuid.UUID = Field(foreign_key="assignments.id")
 
     content: str
     generated_by: str = Field(default="ai") 
