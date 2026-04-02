@@ -105,3 +105,222 @@
   }
 }
 
+.home-shell {
+  --home-text: #10263d;
+  --home-muted: #48607b;
+  --home-accent: #0e6ba8;
+  --home-accent-strong: #0a4f7a;
+  --home-card: #ffffff;
+  --home-border: rgba(16, 38, 61, 0.14);
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
+  padding: 28px clamp(18px, 3vw, 44px) 32px;
+  color: var(--home-text);
+  font-family: 'Trebuchet MS', 'Gill Sans', 'Segoe UI', sans-serif;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(123, 191, 242, 0.22), transparent 28%),
+    radial-gradient(circle at 82% 12%, rgba(14, 107, 168, 0.18), transparent 30%),
+    linear-gradient(130deg, #f8fcff 0%, #eef5fb 40%, #f9fbfd 100%);
+}
+
+.home-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(34px);
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.home-glow--a {
+  width: 220px;
+  height: 220px;
+  background: #76bce8;
+  top: -70px;
+  left: -40px;
+}
+
+.home-glow--b {
+  width: 280px;
+  height: 280px;
+  background: #b0d5ef;
+  bottom: -90px;
+  right: -70px;
+}
+
+.home-header,
+.home-hero,
+.home-grid,
+.home-footer {
+  position: relative;
+  z-index: 1;
+  width: min(1080px, 100%);
+  margin: 0 auto;
+}
+
+.home-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.home-brand {
+  margin: 0;
+  letter-spacing: 0.12em;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.home-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-hero {
+  margin-top: clamp(34px, 6vw, 70px);
+  max-width: 760px;
+  animation: home-rise 520ms ease both;
+}
+
+.home-kicker {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--home-accent-strong);
+}
+
+.home-title {
+  margin: 12px 0 0;
+  font-family: Cambria, Georgia, 'Times New Roman', serif;
+  font-size: clamp(30px, 5vw, 52px);
+  line-height: 1.1;
+}
+
+.home-subtitle {
+  margin: 16px 0 0;
+  max-width: 650px;
+  color: var(--home-muted);
+  font-size: clamp(15px, 2.2vw, 18px);
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.home-link,
+.home-cta {
+  text-decoration: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  transition: transform 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.home-link {
+  color: var(--home-accent-strong);
+}
+
+.home-link:hover,
+.home-link:focus-visible {
+  transform: translateY(-1px);
+}
+
+.home-link--ghost {
+  border: 1px solid rgba(10, 79, 122, 0.24);
+  background-color: rgba(255, 255, 255, 0.7);
+}
+
+.home-cta {
+  border: 0;
+  color: #ffffff;
+  background: linear-gradient(140deg, var(--home-accent), #4da5dc);
+  box-shadow: 0 10px 22px rgba(14, 107, 168, 0.28);
+}
+
+.home-cta:hover,
+.home-cta:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(14, 107, 168, 0.32);
+}
+
+.home-cta--small {
+  padding: 8px 14px;
+}
+
+.home-grid {
+  margin-top: clamp(34px, 6vw, 56px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.home-card {
+  background-color: var(--home-card);
+  border: 1px solid var(--home-border);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 12px 28px rgba(16, 38, 61, 0.08);
+  animation: home-rise 580ms ease both;
+}
+
+.home-card:nth-child(2) {
+  animation-delay: 80ms;
+}
+
+.home-card:nth-child(3) {
+  animation-delay: 160ms;
+}
+
+.home-card h2 {
+  margin: 0;
+  font-size: 19px;
+}
+
+.home-card p {
+  margin: 10px 0 0;
+  color: var(--home-muted);
+}
+
+.home-footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px dashed rgba(16, 38, 61, 0.22);
+  color: #5e7389;
+  font-size: 13px;
+}
+
+@keyframes home-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-shell {
+    padding-top: 20px;
+  }
+
+  .home-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}
+

@@ -1,0 +1,14 @@
+{
+  "name": "datn",
+  "private": true,
+  "scripts": {
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\dev.ps1",
+    "fe": "npm.cmd --prefix frontend run dev",
+    "web": "npm.cmd --prefix frontend run dev",
+    "be": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\backend-dev.ps1",
+    "api": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\backend-dev.ps1",
+    "build:web": "npm.cmd --prefix frontend run build",
+    "stack": "docker compose up --build",
+    "db": "docker compose up db"
+  }
+}

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import {
   createContext,
   type ReactNode,
@@ -12,6 +13,7 @@ import {
   loginAuthLoginPost,
   logoutAuthLogoutPost,
 } from '../generated/sdk.gen';
+import { api } from '../api/axios';
 
 export type CurrentUser = {
   id: string;
@@ -24,14 +26,45 @@ type AuthContextValue = {
   isCheckingAuth: boolean;
   user: CurrentUser | null;
   login: (email: string, password: string) => Promise<CurrentUser>;
+  register: (email: string, password: string) => Promise<CurrentUser>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<CurrentUser | null>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const SESSION_HINT_KEY = 'loc-tracking-has-session';
 
 export const getHomePathByRole = (user: Pick<CurrentUser, 'is_superuser'> | null) =>
   user?.is_superuser ? '/admin' : '/dashboard';
+
+const readSessionHint = () => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(SESSION_HINT_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const writeSessionHint = (hasSession: boolean) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    if (hasSession) {
+      window.localStorage.setItem(SESSION_HINT_KEY, '1');
+      return;
+    }
+
+    window.localStorage.removeItem(SESSION_HINT_KEY);
+  } catch {
+    // Ignore storage errors and keep auth flow functional.
+  }
+};
 
 const parseCurrentUser = (value: unknown): CurrentUser | null => {
   if (!value || typeof value !== 'object') {
@@ -58,20 +91,28 @@ const parseCurrentUser = (value: unknown): CurrentUser | null => {
 
 const getErrorMessage = (error: unknown): string => {
   if (!error || typeof error !== 'object') {
-    return 'Dang nhap that bai. Vui long thu lai.';
+    return 'Yeu cau that bai. Vui long thu lai.';
   }
 
-  const source = error as { detail?: unknown };
+  const source = error as {
+    detail?: unknown;
+    response?: { data?: { detail?: unknown } };
+  };
+
+  if (typeof source.response?.data?.detail === 'string') {
+    return source.response.data.detail;
+  }
+
   if (typeof source.detail === 'string') {
     return source.detail;
   }
 
-  return 'Dang nhap that bai. Vui long thu lai.';
+  return 'Yeu cau that bai. Vui long thu lai.';
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(() => readSessionHint());
 
   const refreshUser = useCallback(async (): Promise<CurrentUser | null> => {
     try {
@@ -81,9 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       const parsedUser = parseCurrentUser(data);
       setUser(parsedUser);
+      writeSessionHint(Boolean(parsedUser));
       return parsedUser;
     } catch {
       setUser(null);
+      writeSessionHint(false);
       return null;
     }
   }, []);
@@ -92,6 +135,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let isMounted = true;
 
     const bootstrap = async () => {
+      if (!readSessionHint()) {
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
+        return;
+      }
+
       await refreshUser();
       if (isMounted) {
         setIsCheckingAuth(false);
@@ -113,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           responseStyle: 'data',
           throwOnError: true,
         });
+        writeSessionHint(true);
       } catch (error) {
         throw new Error(getErrorMessage(error));
       }
@@ -127,6 +178,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refreshUser],
   );
 
+  const register = useCallback(
+    async (email: string, password: string): Promise<CurrentUser> => {
+      try {
+        await api.post('/auth/register', {
+          email,
+          password,
+        });
+        writeSessionHint(true);
+      } catch (error) {
+        writeSessionHint(false);
+        throw new Error(getErrorMessage(error));
+      }
+
+      const currentUser = await refreshUser();
+      if (!currentUser) {
+        throw new Error('Dang ky thanh cong nhung khong lay duoc thong tin nguoi dung.');
+      }
+
+      return currentUser;
+    },
+    [refreshUser],
+  );
+
   const logout = useCallback(async () => {
     try {
       await logoutAuthLogoutPost({
@@ -134,6 +208,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throwOnError: true,
       });
     } finally {
+      writeSessionHint(false);
       setUser(null);
     }
   }, []);
@@ -143,10 +218,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isCheckingAuth,
       user,
       login,
+      register,
       logout,
       refreshUser,
     }),
-    [isCheckingAuth, user, login, logout, refreshUser],
+    [isCheckingAuth, user, login, register, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

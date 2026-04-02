@@ -19,6 +19,11 @@ class UserCreate(SQLModel):
     is_superuser: bool = False
 
 
+class UserRegister(SQLModel):
+    email: EmailStr = Field(max_length=255)
+    password: str = Field(min_length=8, max_length=255)
+
+
 class UserUpdate(SQLModel):
     email: EmailStr | None = Field(default=None, max_length=255)
     password: str | None = Field(default=None, min_length=8, max_length=255)

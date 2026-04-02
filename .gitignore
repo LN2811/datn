@@ -15,3 +15,8 @@ postgres_data/
 
 # OS
 .DS_Store
+*.exe
+*.mp4
+*.log
+node_modules/
+.venv/

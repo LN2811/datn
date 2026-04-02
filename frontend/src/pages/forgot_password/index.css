@@ -1,0 +1,364 @@
+.forgot-password-page {
+  --forgot-text: #16324a;
+  --forgot-muted: #5f7387;
+  --forgot-surface: rgba(255, 255, 255, 0.76);
+  --forgot-border: rgba(33, 66, 97, 0.14);
+  --forgot-shadow: 0 24px 60px rgba(27, 58, 86, 0.14);
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(28, 124, 179, 0.2), transparent 24rem),
+    radial-gradient(circle at 88% 12%, rgba(245, 158, 11, 0.18), transparent 22rem),
+    linear-gradient(180deg, #f7fcff 0%, #eff6fb 48%, #eaf1f7 100%);
+  color: var(--forgot-text);
+}
+
+.forgot-password-page__glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(16px);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.forgot-password-page__glow--left {
+  top: 5rem;
+  left: -4rem;
+  width: 14rem;
+  height: 14rem;
+  background: rgba(59, 130, 246, 0.18);
+}
+
+.forgot-password-page__glow--right {
+  right: -5rem;
+  bottom: 7rem;
+  width: 17rem;
+  height: 17rem;
+  background: rgba(245, 158, 11, 0.18);
+}
+
+.forgot-password-page__layout {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.85fr);
+  gap: 28px;
+  align-items: stretch;
+  width: min(1160px, 100%);
+  margin: 0 auto;
+}
+
+.forgot-password-page__hero,
+.forgot-password-page__card {
+  border: 1px solid var(--forgot-border);
+  border-radius: 30px;
+  background: var(--forgot-surface);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--forgot-shadow);
+}
+
+.forgot-password-page__hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 40px;
+}
+
+.forgot-password-page__brand {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  color: #104765;
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(16, 71, 101, 0.12);
+}
+
+.forgot-password-page__hero-copy {
+  display: grid;
+  gap: 12px;
+}
+
+.forgot-password-page__logo-shell {
+  display: flex;
+  justify-content: center;
+}
+
+.forgot-password-page__logo-shell img {
+  width: min(100%, 250px);
+  height: auto;
+}
+
+.forgot-password-page__eyebrow,
+.forgot-password-page__form-kicker {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #0f5e7b;
+}
+
+.forgot-password-page__hero-title {
+  margin: 0;
+  font-family: Cambria, Georgia, 'Times New Roman', serif;
+  font-size: clamp(2.25rem, 4.3vw, 4rem);
+  line-height: 1.02;
+}
+
+.forgot-password-page__feature-list {
+  display: grid;
+  gap: 14px;
+}
+
+.forgot-password-page__feature {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 14px;
+  align-items: start;
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(33, 66, 97, 0.1);
+}
+
+.forgot-password-page__feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0e7490, #1d4ed8);
+}
+
+.forgot-password-page__feature h2 {
+  margin: 0 0 6px;
+  font-size: 1.02rem;
+}
+
+.forgot-password-page__feature p {
+  margin: 0;
+  color: var(--forgot-muted);
+  line-height: 1.7;
+}
+
+.forgot-password-page__card {
+  padding: 32px;
+}
+
+.forgot-password-page__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.forgot-password-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  color: #4f667a;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.forgot-password-page__back:hover,
+.forgot-password-page__back:focus-visible {
+  color: #123b57;
+}
+
+.forgot-password-page__lock {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0f5e7b, #1d4ed8);
+  box-shadow: 0 14px 30px rgba(29, 78, 216, 0.2);
+}
+
+.forgot-password-page__title {
+  margin: 10px 0 8px;
+  font-size: 2.1rem;
+  line-height: 1.1;
+}
+
+.forgot-password-page__text {
+  margin: 0 0 24px;
+  color: var(--forgot-muted);
+  line-height: 1.6;
+}
+
+.forgot-password-page__text--hero {
+  margin-bottom: 0;
+}
+
+.forgot-password-page__form {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.forgot-password-page__field {
+  display: grid;
+  gap: 8px;
+  color: #284661;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.forgot-password-page__input-shell {
+  position: relative;
+}
+
+.forgot-password-page__field input {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border: 1px solid rgba(69, 101, 127, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--forgot-text);
+  font: inherit;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.forgot-password-page__input-shell input {
+  padding-right: 44px;
+}
+
+.forgot-password-page__field input:focus {
+  outline: none;
+  border-color: rgba(14, 116, 144, 0.58);
+  box-shadow: 0 0 0 4px rgba(14, 116, 144, 0.12);
+}
+
+.forgot-password-page__toggle {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #4f667a;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.forgot-password-page__message {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  font-size: 0.92rem;
+  line-height: 1.6;
+}
+
+.forgot-password-page__message--error {
+  color: #9f1239;
+  background: rgba(255, 228, 234, 0.86);
+  border: 1px solid rgba(225, 29, 72, 0.16);
+}
+
+.forgot-password-page__message--success {
+  color: #17415f;
+  background: rgba(224, 244, 255, 0.9);
+  border: 1px solid rgba(14, 116, 144, 0.16);
+}
+
+.forgot-password-page__dev-link {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(245, 249, 255, 0.92);
+  border: 1px solid rgba(29, 78, 216, 0.12);
+  color: #334155;
+  word-break: break-word;
+}
+
+.forgot-password-page__dev-link a {
+  color: #0f5e7b;
+  font-weight: 700;
+}
+
+.forgot-password-page__submit {
+  min-height: 54px;
+  border: 0;
+  border-radius: 18px;
+  color: #fff;
+  font-size: 0.98rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: linear-gradient(135deg, #0e7490, #1d4ed8);
+  box-shadow: 0 16px 34px rgba(29, 78, 216, 0.22);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+.forgot-password-page__submit:hover,
+.forgot-password-page__submit:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 36px rgba(29, 78, 216, 0.28);
+}
+
+.forgot-password-page__submit:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.forgot-password-page__helper {
+  margin-top: 18px;
+  font-size: 0.92rem;
+  color: var(--forgot-muted);
+  line-height: 1.7;
+}
+
+@media (max-width: 940px) {
+  .forgot-password-page__layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .forgot-password-page {
+    padding: 14px;
+  }
+
+  .forgot-password-page__hero,
+  .forgot-password-page__card {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .forgot-password-page__hero-title {
+    font-size: 2rem;
+  }
+
+  .forgot-password-page__card-head {
+    align-items: flex-start;
+  }
+}

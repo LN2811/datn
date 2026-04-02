@@ -1,6 +1,7 @@
 import secrets
 import warnings
 from typing import Annotated, Any, Literal
+from urllib.parse import urlparse
 
 from pydantic import (
     AnyUrl,
@@ -20,6 +21,20 @@ def parse_cors(v: Any) -> list[str] | str:
     elif isinstance(v, list | str):
         return v
     raise ValueError(v)
+
+
+def expand_localhost_origins(origin: str) -> list[str]:
+    normalized_origin = origin.rstrip("/")
+    parsed = urlparse(normalized_origin)
+    hostname = parsed.hostname
+
+    if hostname not in {"localhost", "127.0.0.1"}:
+        return [normalized_origin]
+
+    alternate_host = "127.0.0.1" if hostname == "localhost" else "localhost"
+    port = f":{parsed.port}" if parsed.port else ""
+    alternate_origin = f"{parsed.scheme}://{alternate_host}{port}"
+    return [normalized_origin, alternate_origin]
 
 
 class Settings(BaseSettings):
@@ -47,9 +62,9 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            self.FRONTEND_HOST
-        ]
+        origins = [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS]
+        origins.extend(expand_localhost_origins(self.FRONTEND_HOST))
+        return list(dict.fromkeys(origins))
 
     PROJECT_NAME: str
     # SENTRY_DSN: HttpUrl | None = None

@@ -34,6 +34,17 @@ async def create_project(
     )
 
 
+@router.get("/overview")
+async def get_dashboard_overview(
+    session: SessionDep,
+    current_user: Users = Depends(Authen.get_current_user),
+) -> dict:
+    return await ProjectService().get_dashboard_overview(
+        session=session,
+        user_id=current_user.id,
+    )
+
+
 @router.patch("/{project_id}")
 async def update_project(
     project_id: uuid.UUID,
@@ -45,6 +56,19 @@ async def update_project(
         session=session,
         project_id=project_id,
         project_data=project_in,
+        user_id=current_user.id,
+    )
+
+
+@router.get("/{project_id}")
+async def get_project(
+    project_id: uuid.UUID,
+    session: SessionDep,
+    current_user: Users = Depends(Authen.get_current_user),
+) -> dict:
+    return await ProjectService().get_project(
+        session=session,
+        project_id=project_id,
         user_id=current_user.id,
     )
 

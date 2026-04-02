@@ -1,7 +1,8 @@
 import { client } from '../generated/client.gen';
+import { getApiBaseUrl } from './baseUrl';
 
 client.setConfig({
-  baseUrl: import.meta.env.VITE_API_URL ?? 'http://localhost:8000',
+  baseUrl: getApiBaseUrl(),
   credentials: 'include',
 });
 
