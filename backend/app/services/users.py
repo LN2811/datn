@@ -10,7 +10,8 @@ from app.models.models import Users
 
 
 class UserService:
-    ALLOWED_SORT_FIELDS = {"id", "email", "is_active", "is_superuser"}
+    ALLOWED_SORT_FIELDS = {"id", "email", "account_name", "is_active", "is_superuser"}
+    SAFE_PROFILE_FIELDS = {"account_name", "contact_email", "contact_phone", "avatar_url"}
 
     @staticmethod
     def _dump_payload(schema_obj: Any) -> dict:
@@ -81,6 +82,10 @@ class UserService:
         new_user = Users(
             email=email,
             hashed_password=get_password_hash(password),
+            account_name=payload.get("account_name"),
+            contact_email=payload.get("contact_email"),
+            contact_phone=payload.get("contact_phone"),
+            avatar_url=payload.get("avatar_url"),
             is_active=payload.get("is_active", True),
             is_superuser=payload.get("is_superuser", False),
         )
@@ -113,6 +118,22 @@ class UserService:
 
         for field, value in update_data.items():
             if hasattr(user, field):
+                setattr(user, field, value)
+
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+        return user
+
+    @staticmethod
+    def update_current_user(*, session: Session, user_id: uuid.UUID, user_in: Any):
+        user = session.get(Users, user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        update_data = UserService._dump_payload(user_in)
+        for field, value in update_data.items():
+            if field in UserService.SAFE_PROFILE_FIELDS and hasattr(user, field):
                 setattr(user, field, value)
 
         session.add(user)

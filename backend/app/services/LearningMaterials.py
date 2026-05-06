@@ -1,10 +1,15 @@
 import uuid
+import logging
 from typing import Any, List
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlmodel import Session, select
 
-from app.models.models import LearningMaterials, Projects
+from app.models.models import LearningMaterials, Projects, Users
+from app.services.material_chunk import MaterialChunkService
+from app.services.storage import save_uploaded_file
+
+logger = logging.getLogger("uvicorn.error")
 
 
 class LearningMaterialService:
@@ -23,15 +28,15 @@ class LearningMaterialService:
         self,
         *,
         project_id: uuid.UUID,
-        material_in: Any,
+        title: str,
+        external_link: str | None = None,
+        file_path: UploadFile | None = None,
+        current_user: Users,
     ) -> LearningMaterials:
         project = self.session.get(Projects, project_id)
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        payload = self._dump_payload(material_in)
-        file_path = payload.get("file_path")
-        external_link = payload.get("external_link") or payload.get("url")
         if file_path and external_link:
             raise HTTPException(
                 status_code=400,
@@ -43,23 +48,36 @@ class LearningMaterialService:
                 detail="Either file_path or external_link must be provided",
             )
 
-        record_data = {
-            "project_id": project_id,
-            "uploaded_by": payload.get("uploaded_by"),
-            "title": payload.get("title"),
-            "file_path": file_path,
-            "external_link": external_link,
-        }
-        if record_data["uploaded_by"] is None:
-            raise HTTPException(status_code=400, detail="uploaded_by is required")
-        if not record_data["title"]:
-            raise HTTPException(status_code=400, detail="title is required")
+        saved_file_path = None
+        if file_path:
+            file_info = save_uploaded_file(file_path)
+            saved_file_path = file_info["file_path"]
 
-        material = LearningMaterials(**record_data)
+        material = LearningMaterials(
+            project_id=project_id,
+            title=title,
+            file_path=saved_file_path,
+            external_link=external_link,
+            uploaded_by=current_user.id,
+        )
         self.session.add(material)
         self.session.commit()
         self.session.refresh(material)
+
+        try:
+            MaterialChunkService(self.session).save_material_chunk(
+                material_id=material.id,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to create material chunks. material_id=%s error_type=%s error=%s",
+                material.id,
+                type(exc).__name__,
+                exc,
+            )
+
         return material
+
 
     def get_materials_by_project(
         self,

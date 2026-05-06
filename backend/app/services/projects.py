@@ -9,12 +9,20 @@ from sqlmodel import Session, select
 
 from app.models.models import (
     AIAnalysis,
+    AICodeFeedback,
+    AIGeneratedSources,
+    AIUsageLogs,
+    Answers,
     AssessmentAttempt,
     AssessmentResults,
     Assignments,
     CodeSubmissions,
+    Curriculums,
+    CurriculumModules,
     LearningMaterials,
+    MaterialChunk,
     Projects,
+    Questions,
     Users,
 )
 
@@ -40,6 +48,18 @@ class ProjectService:
             return session.exec(statement).first()
         except SQLAlchemyError:
             return None
+
+    @staticmethod
+    def _delete_records(session: Session, model, records, seen_ids: set | None = None) -> None:
+        del model
+        if seen_ids is None:
+            seen_ids = set()
+        for record in records:
+            record_id = getattr(record, "id", id(record))
+            if record_id in seen_ids:
+                continue
+            seen_ids.add(record_id)
+            session.delete(record)
 
     @staticmethod
     def _serialize_datetime(value: datetime | None) -> str | None:
@@ -241,6 +261,19 @@ class ProjectService:
                 .order_by(CodeSubmissions.submitted_at.desc()),
             )
 
+        quiz_attempts = []
+        if assignment_ids and has_attempts_table:
+            quiz_attempts = self._safe_exec_all(
+                session,
+                select(AssessmentAttempt)
+                .where(
+                    AssessmentAttempt.user_id == current_user_id,
+                    AssessmentAttempt.assignment_id.in_(assignment_ids),
+                    AssessmentAttempt.is_submitted == True,
+                )
+                .order_by(AssessmentAttempt.submitted_at.desc()),
+            )
+
         materials = (
             self._safe_exec_all(
                 session,
@@ -289,6 +322,12 @@ class ProjectService:
         for submission in submissions:
             submissions_by_assignment.setdefault(submission.assignment_id, []).append(submission)
 
+        quiz_attempts_by_assignment: dict[uuid.UUID, list[AssessmentAttempt]] = {}
+        for attempt in quiz_attempts:
+            if attempt.assignment_id is None:
+                continue
+            quiz_attempts_by_assignment.setdefault(attempt.assignment_id, []).append(attempt)
+
         material_count_by_project: dict[uuid.UUID, int] = {}
         for material in materials:
             material_count_by_project[material.project_id] = (
@@ -307,13 +346,23 @@ class ProjectService:
 
             for assignment in project_assignments:
                 assignment_submissions = submissions_by_assignment.get(assignment.id, [])
-                submission_count = len(assignment_submissions)
+                assignment_quiz_attempts = quiz_attempts_by_assignment.get(assignment.id, [])
+                submission_count = len(assignment_submissions) + len(assignment_quiz_attempts)
                 total_submissions += submission_count
                 if submission_count > 0:
                     submitted_assignments += 1
 
-                latest_submission_at = (
+                latest_code_submission_at = (
                     assignment_submissions[0].submitted_at if assignment_submissions else None
+                )
+                latest_quiz_submission_at = (
+                    assignment_quiz_attempts[0].submitted_at
+                    if assignment_quiz_attempts
+                    else None
+                )
+                latest_submission_at = self._latest_datetime(
+                    latest_code_submission_at,
+                    latest_quiz_submission_at,
                 )
                 best_score = None
                 if hasattr(CodeSubmissions, "score") and assignment_submissions:
@@ -554,6 +603,150 @@ class ProjectService:
             raise HTTPException(status_code=404, detail="Project not found")
         if project.owner_id != current_user_id:
             raise HTTPException(status_code=403, detail="Not authorized to delete this project")
+
+        curriculum_ids = session.exec(
+            select(Curriculums.id).where(Curriculums.project_id == project_id)
+        ).all()
+        module_ids = (
+            session.exec(
+                select(CurriculumModules.id).where(CurriculumModules.curriculum_id.in_(curriculum_ids))
+            ).all()
+            if curriculum_ids
+            else []
+        )
+        material_ids = session.exec(
+            select(LearningMaterials.id).where(LearningMaterials.project_id == project_id)
+        ).all()
+        assignment_ids = session.exec(
+            select(Assignments.id).where(Assignments.project_id == project_id)
+        ).all()
+        submission_ids = (
+            session.exec(
+                select(CodeSubmissions.id).where(CodeSubmissions.assignment_id.in_(assignment_ids))
+            ).all()
+            if assignment_ids
+            else []
+        )
+        question_ids = session.exec(
+            select(Questions.id).where(Questions.project_id == project_id)
+        ).all()
+        attempt_ids = session.exec(
+            select(AssessmentAttempt.id).where(AssessmentAttempt.project_id == project_id)
+        ).all()
+        result_ids = session.exec(
+            select(AssessmentResults.id).where(AssessmentResults.project_id == project_id)
+        ).all()
+
+        deleted_answer_ids: set = set()
+        deleted_chunk_ids: set = set()
+
+        if question_ids:
+            self._delete_records(
+                session,
+                Answers,
+                session.exec(select(Answers).where(Answers.question_id.in_(question_ids))).all(),
+                deleted_answer_ids,
+            )
+        if attempt_ids:
+            self._delete_records(
+                session,
+                Answers,
+                session.exec(select(Answers).where(Answers.attempt_id.in_(attempt_ids))).all(),
+                deleted_answer_ids,
+            )
+        if submission_ids:
+            self._delete_records(
+                session,
+                AICodeFeedback,
+                session.exec(
+                    select(AICodeFeedback).where(AICodeFeedback.submission_id.in_(submission_ids))
+                ).all(),
+            )
+
+        if result_ids:
+            self._delete_records(
+                session,
+                AIAnalysis,
+                session.exec(
+                    select(AIAnalysis).where(AIAnalysis.assessment_result_id.in_(result_ids))
+                ).all(),
+            )
+
+        if material_ids:
+            self._delete_records(
+                session,
+                MaterialChunk,
+                session.exec(select(MaterialChunk).where(MaterialChunk.material_id.in_(material_ids))).all(),
+                deleted_chunk_ids,
+            )
+        if module_ids:
+            self._delete_records(
+                session,
+                MaterialChunk,
+                session.exec(
+                    select(MaterialChunk).where(MaterialChunk.curriculum_module_id.in_(module_ids))
+                ).all(),
+                deleted_chunk_ids,
+            )
+
+        self._delete_records(
+            session,
+            Questions,
+            session.exec(select(Questions).where(Questions.project_id == project_id)).all(),
+        )
+        if submission_ids:
+            self._delete_records(
+                session,
+                CodeSubmissions,
+                session.exec(select(CodeSubmissions).where(CodeSubmissions.id.in_(submission_ids))).all(),
+            )
+        if assignment_ids:
+            self._delete_records(
+                session,
+                Assignments,
+                session.exec(select(Assignments).where(Assignments.id.in_(assignment_ids))).all(),
+            )
+        if result_ids:
+            self._delete_records(
+                session,
+                AssessmentResults,
+                session.exec(select(AssessmentResults).where(AssessmentResults.id.in_(result_ids))).all(),
+            )
+        if attempt_ids:
+            self._delete_records(
+                session,
+                AssessmentAttempt,
+                session.exec(select(AssessmentAttempt).where(AssessmentAttempt.id.in_(attempt_ids))).all(),
+            )
+        if material_ids:
+            self._delete_records(
+                session,
+                LearningMaterials,
+                session.exec(select(LearningMaterials).where(LearningMaterials.id.in_(material_ids))).all(),
+            )
+        if module_ids:
+            self._delete_records(
+                session,
+                CurriculumModules,
+                session.exec(select(CurriculumModules).where(CurriculumModules.id.in_(module_ids))).all(),
+            )
+        if curriculum_ids:
+            self._delete_records(
+                session,
+                Curriculums,
+                session.exec(select(Curriculums).where(Curriculums.id.in_(curriculum_ids))).all(),
+            )
+
+        self._delete_records(
+            session,
+            AIGeneratedSources,
+            session.exec(select(AIGeneratedSources).where(AIGeneratedSources.project_id == project_id)).all(),
+        )
+        self._delete_records(
+            session,
+            AIUsageLogs,
+            session.exec(select(AIUsageLogs).where(AIUsageLogs.project_id == project_id)).all(),
+        )
 
         session.delete(project)
         session.commit()

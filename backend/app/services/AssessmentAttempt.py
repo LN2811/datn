@@ -41,6 +41,7 @@ class AssessmentAttemptService:
 
         new_attempt = AssessmentAttempt(
             project_id=project_id,
+            assignment_id=assignment_id,
             user_id=user_id,
             started_at=datetime.utcnow(),
             is_submitted=False,

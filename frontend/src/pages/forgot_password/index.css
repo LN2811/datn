@@ -294,7 +294,11 @@
   background: rgba(245, 249, 255, 0.92);
   border: 1px solid rgba(29, 78, 216, 0.12);
   color: #334155;
-  word-break: break-word;
+  text-align: left;
+  word-break: normal;
+  overflow-wrap: anywhere;
+  word-spacing: normal;
+  letter-spacing: normal;
 }
 
 .forgot-password-page__dev-link a {

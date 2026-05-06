@@ -20,12 +20,15 @@ class ResetPasswordRequest(BaseModel):
 
 
 def _set_auth_cookie(response: Response, token: str) -> None:
+    cookie_max_age = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
     response.set_cookie(
         key="token",
         value=token,
         httponly=True,
         secure=settings.ENVIRONMENT not in {"local", "development"},
         samesite="lax",
+        max_age=cookie_max_age,
+        expires=cookie_max_age,
     )
 
 

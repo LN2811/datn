@@ -7,11 +7,20 @@ if (-not (Test-Path $backendPath)) {
     throw "Khong tim thay thu muc backend: $backendPath"
 }
 
+$activeVenvPython = $null
+if ($env:VIRTUAL_ENV) {
+    $candidate = Join-Path $env:VIRTUAL_ENV "Scripts\\python.exe"
+    if (Test-Path $candidate) {
+        $activeVenvPython = $candidate
+    }
+}
+
 $pythonCandidates = @(
+    $activeVenvPython,
     (Join-Path $backendPath "venv\\Scripts\\python.exe"),
     (Join-Path $backendPath ".venv\\Scripts\\python.exe"),
     (Join-Path $projectRoot ".venv\\Scripts\\python.exe")
-)
+) | Where-Object { $_ }
 
 $pythonExe = $pythonCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 $pythonArgs = @()

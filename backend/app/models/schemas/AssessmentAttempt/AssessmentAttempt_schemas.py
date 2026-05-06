@@ -19,6 +19,12 @@ class AssessmentAttemptBase(SQLModel):
         index=True
     )
 
+    assignment_id: Optional[uuid.UUID] = Field(
+        default=None,
+        foreign_key="assignments.id",
+        index=True,
+    )
+
     started_at: Optional[datetime] = Field(
         default_factory=datetime.utcnow,
         nullable=False

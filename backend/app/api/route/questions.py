@@ -17,6 +17,15 @@ class QuestionCreateBody(BaseModel):
     generated_by: str = "ai"
 
 
+class QuizAnswerBody(BaseModel):
+    question_id: uuid.UUID
+    selected_option_id: uuid.UUID
+
+
+class QuizSubmitBody(BaseModel):
+    answers: list[QuizAnswerBody]
+
+
 @router.get("/assignment/{assignment_id}")
 def get_questions(
     assignment_id: uuid.UUID,
@@ -26,6 +35,68 @@ def get_questions(
     return QuestionService().get_questions(
         session=session,
         assignment_id=assignment_id,
+    )
+
+
+@router.get("/assignment/{assignment_id}/quiz")
+def get_assignment_quiz(
+    assignment_id: uuid.UUID,
+    session: SessionDep,
+    _: Users = Depends(Authen.get_current_user),
+) -> dict:
+    return QuestionService().get_assignment_quiz(
+        session=session,
+        assignment_id=assignment_id,
+    )
+
+
+@router.post("/assignment/{assignment_id}/quiz/submit")
+def submit_assignment_quiz(
+    assignment_id: uuid.UUID,
+    quiz_in: QuizSubmitBody,
+    session: SessionDep,
+    current_user: Users = Depends(Authen.get_current_user),
+) -> dict:
+    answers = [
+        answer.model_dump() if hasattr(answer, "model_dump") else answer.dict()
+        for answer in quiz_in.answers
+    ]
+    return QuestionService().submit_assignment_quiz(
+        session=session,
+        assignment_id=assignment_id,
+        user_id=current_user.id,
+        answers=answers,
+    )
+
+
+@router.get("/modules/{module_id}/quiz")
+def get_module_quiz(
+    module_id: uuid.UUID,
+    session: SessionDep,
+    _: Users = Depends(Authen.get_current_user),
+) -> dict:
+    return QuestionService().get_module_quiz(
+        session=session,
+        module_id=module_id,
+    )
+
+
+@router.post("/modules/{module_id}/quiz/submit")
+def submit_module_quiz(
+    module_id: uuid.UUID,
+    quiz_in: QuizSubmitBody,
+    session: SessionDep,
+    current_user: Users = Depends(Authen.get_current_user),
+) -> dict:
+    answers = [
+        answer.model_dump() if hasattr(answer, "model_dump") else answer.dict()
+        for answer in quiz_in.answers
+    ]
+    return QuestionService().submit_module_quiz(
+        session=session,
+        module_id=module_id,
+        user_id=current_user.id,
+        answers=answers,
     )
 
 

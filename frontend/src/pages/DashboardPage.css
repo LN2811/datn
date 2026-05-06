@@ -83,14 +83,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-  padding: 20px 22px;
-  border-radius: 28px;
+  gap: 16px;
+  padding: 12px 16px;
+  border-radius: 18px;
 }
 
 .study-dashboard__bar-copy {
   display: grid;
-  gap: 8px;
+  gap: 3px;
 }
 
 .study-dashboard__kicker,
@@ -118,7 +118,8 @@
 }
 
 .study-dashboard__bar-copy h1 {
-  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  font-size: clamp(1.35rem, 2vw, 1.7rem);
+  line-height: 1.2;
 }
 
 .study-dashboard__bar-copy p,
@@ -141,6 +142,79 @@
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.study-dashboard__account-link,
+.study-dashboard__admin-link {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.study-dashboard__account-link {
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 8px 6px 6px;
+  border: 1px solid rgba(16, 44, 69, 0.08);
+  border-radius: 999px;
+  color: var(--dashboard-text);
+  background: rgba(255, 255, 255, 0.78);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.study-dashboard__account-link:hover,
+.study-dashboard__account-link:focus-visible,
+.study-dashboard__admin-link:hover,
+.study-dashboard__admin-link:focus-visible {
+  transform: translateY(-1px);
+}
+
+.study-dashboard__account-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--dashboard-blue), var(--dashboard-teal));
+  font-size: 0.9rem;
+  letter-spacing: normal;
+}
+
+.study-dashboard__account-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.study-dashboard__account-copy strong,
+.study-dashboard__account-copy span {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.study-dashboard__account-copy span {
+  color: var(--dashboard-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.study-dashboard__admin-link {
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: #0f5a83;
+  background: rgba(37, 99, 235, 0.08);
 }
 
 .study-dashboard__ghost-link,
@@ -204,15 +278,13 @@
 }
 
 .study-dashboard__hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.85fr);
-  gap: 24px;
+  display: block;
   margin-top: 24px;
 }
 
 .study-dashboard__hero-main {
-  padding: 32px;
-  border-radius: 34px;
+  padding: 24px;
+  border-radius: 22px;
   color: #ffffff;
   background:
     radial-gradient(circle at top right, rgba(255, 255, 255, 0.16), transparent 24rem),
@@ -231,8 +303,8 @@
 
 .study-dashboard__hero-head h2 {
   font-family: Cambria, Georgia, 'Times New Roman', serif;
-  font-size: clamp(2.2rem, 4vw, 3.5rem);
-  line-height: 0.98;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  line-height: 1.08;
 }
 
 .study-dashboard__hero-head p,
@@ -242,9 +314,9 @@
 
 .study-dashboard__summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin-top: 28px;
+  margin-top: 20px;
 }
 
 .study-dashboard__summary-card {
@@ -253,6 +325,10 @@
   padding: 18px;
   border-radius: 24px;
   color: #ffffff;
+}
+.project-section__link{
+  text-decoration: none;
+  margin-left: 20px;
 }
 
 .study-dashboard__summary-card--blue {
@@ -856,9 +932,12 @@
 }
 
 @media (max-width: 1120px) {
-  .study-dashboard__hero,
   .study-dashboard__content {
     grid-template-columns: 1fr;
+  }
+
+  .study-dashboard__summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .study-dashboard__side {
@@ -872,10 +951,9 @@
     align-items: flex-start;
   }
 
-  .study-dashboard__bar-actions,
-  .study-dashboard__ghost-link,
-  .study-dashboard__primary-link {
+  .study-dashboard__bar-actions {
     width: 100%;
+    justify-content: space-between;
   }
 
   .study-dashboard__summary-grid,
@@ -916,7 +994,7 @@
   }
 
   .study-dashboard__hero-head h2 {
-    font-size: 2.1rem;
+    font-size: 1.8rem;
   }
 
   .study-dashboard__signal,

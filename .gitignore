@@ -10,6 +10,9 @@ venv/
 # Alembic cache
 alembic/versions/__pycache__/
 
+# Local uploaded files
+backend/app/storage/
+
 # Docker
 postgres_data/
 

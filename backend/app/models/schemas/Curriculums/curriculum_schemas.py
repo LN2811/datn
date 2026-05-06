@@ -15,6 +15,8 @@ class CurriculumBase(SQLModel):
     overview: Optional[str] = None
     generated_by: str = Field(default="ai")
     is_active: bool = Field(default=True)
+    total_module: Optional[int] = None
+    ready_module: int = 0
     created_at: Optional[datetime] = Field(
         default_factory=datetime.utcnow
     )
@@ -27,6 +29,8 @@ class CurriculumUpdate(SQLModel):
     overview: Optional[str] = None
     generated_by: Optional[str] = None
     is_active: Optional[bool] = None
+    total_module: Optional[int] = None
+    ready_module: Optional[int] = None
     updated_at: Optional[datetime] = Field(
         default_factory=datetime.utcnow,
         nullable=True

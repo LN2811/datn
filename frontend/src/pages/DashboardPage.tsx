@@ -3,7 +3,6 @@ import {
   ArrowRight,
   BookOpen,
   Brain,
-  Briefcase,
   CheckCircle2,
   CircleAlert,
   Clock3,
@@ -11,9 +10,7 @@ import {
   FolderKanban,
   GraduationCap,
   LayoutDashboard,
-  LogOut,
   Plus,
-  RefreshCw,
   ShieldCheck,
   Sparkles,
   Target,
@@ -93,7 +90,17 @@ type CreateProjectPayload = {
   description: string;
 };
 
-const getDisplayName = (email?: string | null) => {
+type CreatedProject = {
+  id: string;
+  name: string;
+  description?: string | null;
+};
+
+const getDisplayName = (accountName?: string | null, email?: string | null) => {
+  if (accountName?.trim()) {
+    return accountName.trim();
+  }
+
   if (!email) {
     return 'ban';
   }
@@ -109,6 +116,19 @@ const getDisplayName = (email?: string | null) => {
     .split(/\s+/)
     .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
     .join(' ');
+};
+
+const getAvatarInitials = (name?: string | null, email?: string | null) => {
+  const source = name?.trim() || email?.trim() || 'U';
+  const chunks = source.includes('@')
+    ? [source.charAt(0)]
+    : source.split(/\s+/).filter(Boolean).slice(0, 2);
+
+  return (
+    chunks
+      .map((chunk) => chunk.charAt(0).toUpperCase())
+      .join('') || 'U'
+  );
 };
 
 const formatDateTime = (value?: string | null) => {
@@ -262,12 +282,10 @@ const loadDashboardOverview = async () => {
 
 export function DashboardPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
 
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [error, setError] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -295,7 +313,6 @@ export function DashboardPage() {
       } finally {
         if (isMounted) {
           setIsLoading(false);
-          setIsRefreshing(false);
         }
       }
     };
@@ -306,20 +323,6 @@ export function DashboardPage() {
       isMounted = false;
     };
   }, []);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    setError('');
-
-    try {
-      const response = await loadDashboardOverview();
-      setOverview(response);
-    } catch (loadError) {
-      setError(getErrorMessage(loadError));
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
 
   const resetCreateProjectForm = () => {
     setProjectName('');
@@ -343,13 +346,14 @@ export function DashboardPage() {
     setCreateProjectStatus('');
 
     try {
-      await api.post('/projects', payload);
+      const createResponse = await api.post<CreatedProject>('/projects', payload);
       const response = await loadDashboardOverview();
       setOverview(response);
       setCreateProjectStatus('Da tao project moi thanh cong.');
       resetCreateProjectForm();
       setIsCreateOpen(false);
       setError('');
+      navigate(`/projects/${createResponse.data.id}`);
     } catch (createError) {
       setCreateProjectError(getCreateProjectErrorMessage(createError));
     } finally {
@@ -357,17 +361,8 @@ export function DashboardPage() {
     }
   };
 
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      await logout();
-      navigate('/login', { replace: true });
-    } finally {
-      setIsLoggingOut(false);
-    }
-  };
-
-  const displayName = getDisplayName(user?.email);
+  const displayName = getDisplayName(user?.account_name, user?.email);
+  const avatarInitials = getAvatarInitials(displayName, user?.email);
   const projects = overview?.projects ?? [];
   const summary = overview?.summary;
   const topPriorities = [...projects]
@@ -414,55 +409,24 @@ export function DashboardPage() {
       <div className="study-dashboard__shell">
         <header className="study-dashboard__bar">
           <div className="study-dashboard__bar-copy">
-            <span className="study-dashboard__kicker">Signed-in learning dashboard</span>
-            <h1>Chao mung tro lai, {displayName}.</h1>
-            <p>
-              Sau khi dang nhap, day la noi ban theo doi project dang hoc, tien do bai tap,
-              ket qua tu danh gia, va cac goi y AI de quyet dinh buoc tiep theo.
-            </p>
+            <span className="study-dashboard__kicker">Learning workspace</span>
+            <h1>Dashboard</h1>
           </div>
 
           <div className="study-dashboard__bar-actions">
-            <button
-              className="study-dashboard__primary-link study-dashboard__primary-link--create"
-              type="button"
-              onClick={() => {
-                setIsCreateOpen((current) => !current);
-                setCreateProjectStatus('');
-                setCreateProjectError('');
-              }}
-            >
-              <Plus size={18} />
-              {isCreateOpen ? 'Dong form tao project' : 'Tao project'}
-            </button>
-            <Link className="study-dashboard__ghost-link" to="/">
-              <ArrowRight size={18} />
-              Trang public
-            </Link>
             {user?.is_superuser ? (
-              <Link className="study-dashboard__ghost-link" to="/admin">
-                <ShieldCheck size={18} />
+              <Link className="study-dashboard__admin-link" to="/admin">
+                <ShieldCheck size={16} />
                 Admin
               </Link>
             ) : null}
-            <button
-              className="study-dashboard__ghost-link study-dashboard__ghost-link--button"
-              type="button"
-              onClick={handleRefresh}
-              disabled={isRefreshing}
-            >
-              <RefreshCw size={18} className={isRefreshing ? 'study-dashboard__spin' : ''} />
-              {isRefreshing ? 'Dang tai...' : 'Lam moi'}
-            </button>
-            <button
-              className="study-dashboard__primary-link"
-              type="button"
-              onClick={handleLogout}
-              disabled={isLoggingOut}
-            >
-              <LogOut size={18} />
-              {isLoggingOut ? 'Dang xu ly...' : 'Dang xuat'}
-            </button>
+            <Link className="study-dashboard__account-link" to="/profile">
+              <span className="study-dashboard__account-avatar">{avatarInitials}</span>
+              <span className="study-dashboard__account-copy">
+                <strong>{displayName}</strong>
+                <span>{user?.email ?? 'Khong co email'}</span>
+              </span>
+            </Link>
           </div>
         </header>
 
@@ -470,11 +434,7 @@ export function DashboardPage() {
           <div className="study-dashboard__hero-main">
             <div className="study-dashboard__hero-head">
               <span className="study-dashboard__eyebrow">Overview</span>
-              <h2>Bang tong hop qua trinh hoc va muc do san sang</h2>
-              <p>
-                Phan nay uu tien nhung gi can xem ngay: tong quan tien do, bai tap da nop,
-                ket qua tu danh gia theo tung project, va muc nao dang can chu y hon.
-              </p>
+              <h2>Tong quan hoc tap</h2>
             </div>
 
             <div className="study-dashboard__summary-grid">
@@ -493,69 +453,18 @@ export function DashboardPage() {
               ))}
             </div>
           </div>
-
-          <aside className="study-dashboard__hero-side">
-            <div className="study-dashboard__panel">
-              <div className="study-dashboard__panel-head">
-                <div className="study-dashboard__avatar">
-                  {displayName
-                    .split(/\s+/)
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .map((chunk) => chunk.charAt(0).toUpperCase())
-                    .join('') || 'U'}
-                </div>
-                <div>
-                  <span className="study-dashboard__panel-kicker">Tai khoan hien tai</span>
-                  <h3>{user?.is_superuser ? 'Administrator' : 'Learner workspace'}</h3>
-                </div>
-              </div>
-
-              <div className="study-dashboard__signal-list">
-                <div className="study-dashboard__signal">
-                  <span>
-                    <Briefcase size={16} />
-                    Email
-                  </span>
-                  <strong>{user?.email ?? 'Khong co du lieu'}</strong>
-                </div>
-                <div className="study-dashboard__signal">
-                  <span>
-                    <ShieldCheck size={16} />
-                    Session
-                  </span>
-                  <strong>{user?.is_active ? 'Dang hoat dong' : 'Bi gioi han'}</strong>
-                </div>
-                <div className="study-dashboard__signal">
-                  <span>
-                    <CircleAlert size={16} />
-                    Muc can chu y
-                  </span>
-                  <strong>{summary?.attention_needed ?? 0} project</strong>
-                </div>
-                <div className="study-dashboard__signal">
-                  <span>
-                    <Clock3 size={16} />
-                    Hoat dong gan nhat
-                  </span>
-                  <strong>{formatDateTime(summary?.last_activity_at)}</strong>
-                </div>
-              </div>
-            </div>
-          </aside>
         </section>
 
         <section className="study-dashboard__content">
           <div className="study-dashboard__main">
             <section className="study-dashboard__section-card">
               <div className="study-dashboard__section-head">
-                <div>
+                <Link to="/projects" className="project-section__link">
                   <span className="study-dashboard__section-kicker">Projects</span>
-                  <h2>Cac project dang theo hoc</h2>
-                </div>
+                  <h2 style={{color:'black'}}>Cac project dang theo hoc</h2>
+                </Link>
                 <LayoutDashboard size={20} />
               </div>
-
               {error ? (
                 <div className="study-dashboard__banner study-dashboard__banner--error">
                   <CircleAlert size={18} />
@@ -692,66 +601,6 @@ export function DashboardPage() {
                             </div>
                           </section>
                         </div>
-
-                        <section className="study-dashboard__assignments">
-                          <div className="study-dashboard__panel-headline">
-                            <div>
-                              <span className="study-dashboard__section-kicker">Bai tap va bai kiem tra</span>
-                              <h4>Nhung dau viec gan nhat trong project</h4>
-                            </div>
-                            <BookOpen size={18} />
-                          </div>
-
-                          {project.recent_assignments.length === 0 ? (
-                            <div className="study-dashboard__empty-inline">
-                              <FileText size={18} />
-                              <span>Project nay chua co assignment nao de hien thi.</span>
-                            </div>
-                          ) : (
-                            <div className="study-dashboard__assignment-list">
-                              {project.recent_assignments.map((assignment) => {
-                                const assignmentState = getAssignmentState(assignment);
-
-                                return (
-                                  <article key={assignment.id} className="study-dashboard__assignment-item">
-                                    <div className="study-dashboard__assignment-copy">
-                                      <div className="study-dashboard__assignment-top">
-                                        <h5>{assignment.title}</h5>
-                                        <span
-                                          className={`study-dashboard__pill study-dashboard__pill--${assignmentState.tone}`}
-                                        >
-                                          {assignmentState.label}
-                                        </span>
-                                      </div>
-                                      <p>
-                                        {assignment.description?.trim()
-                                          ? assignment.description
-                                          : 'Chua co mo ta cho bai tap nay.'}
-                                      </p>
-                                    </div>
-
-                                    <div className="study-dashboard__assignment-side">
-                                      <span>
-                                        <Clock3 size={15} />
-                                        Tao luc {formatShortDate(assignment.created_at)}
-                                      </span>
-                                      <span>
-                                        <ArrowRight size={15} />
-                                        {assignment.last_submitted_at
-                                          ? `Lan nop gan nhat ${formatShortDate(assignment.last_submitted_at)}`
-                                          : 'Chua co submission'}
-                                      </span>
-                                      <span>
-                                        <CheckCircle2 size={15} />
-                                        {assignment.submission_count} luot nop bai
-                                      </span>
-                                    </div>
-                                  </article>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </section>
 
                         <div className="study-dashboard__next-step">
                           <Sparkles size={18} />

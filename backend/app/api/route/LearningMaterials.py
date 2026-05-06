@@ -1,13 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from pydantic import BaseModel
 
 from app.api.deps import SessionDep
 from app.authen.authen import Authen
 from app.models.models import Users
 from app.services.LearningMaterials import LearningMaterialService
-
 router = APIRouter()
 
 
@@ -26,16 +25,21 @@ class LearningMaterialUpdateBody(BaseModel):
     url: str | None = None
 
 
-@router.post("/project/{project_id}")
+@router.post("/project/{project_id}/materials")
 def create_material(
     project_id: uuid.UUID,
-    material_in: LearningMaterialCreateBody,
     session: SessionDep,
-    _: Users = Depends(Authen.get_current_user),
+    current_user: Users = Depends(Authen.get_current_user),
+    title: str = Form(...),
+    external_link: str | None = Form(None),
+    file_path: UploadFile | None = File(None),
 ):
     return LearningMaterialService(session).create_material(
         project_id=project_id,
-        material_in=material_in,
+        title=title,
+        external_link=external_link,
+        file_path=file_path,
+        current_user=current_user,
     )
 
 

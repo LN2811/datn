@@ -6,6 +6,9 @@ from pydantic import BaseModel
 from app.api.deps import SessionDep
 from app.authen.authen import Authen
 from app.models.models import Users
+from app.models.schemas.Curriculum_Module.curriculum_module_schemas import (
+    CurriculumModulePublic,
+)
 from app.services.curriculum import CurriculumService
 
 router = APIRouter()
@@ -84,4 +87,34 @@ def delete_curriculum(
     return CurriculumService().delete_curriculum(
         session=session,
         curriculum_id=curriculum_id,
+    )
+
+
+@router.get(
+    "/projects/{project_id}/lessons",
+    response_model=list[CurriculumModulePublic],
+)
+def get_lessons_by_project(
+    project_id: uuid.UUID,
+    session: SessionDep,
+    _: Users = Depends(Authen.get_current_user),
+) -> list[CurriculumModulePublic]:
+    return CurriculumService().get_lessons_by_curriculum(
+        session=session,
+        project_id=project_id,
+    )
+
+
+@router.post("/projects/{project_id}/generate-lessons")
+@router.post("/projects/{project_id}/generate_lessions")
+def generate_lessons_for_project(
+    project_id: uuid.UUID,
+    session: SessionDep,
+    _: Users = Depends(Authen.get_current_user),
+    force_regenerate: bool = False,
+):
+    return CurriculumService().generate_lessons_for_project(
+        session=session,
+        project_id=project_id,
+        force_regenerate=force_regenerate,
     )

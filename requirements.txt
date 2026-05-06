@@ -11,3 +11,12 @@ python-jose
 passlib[bcrypt]
 bcrypt==4.0.1
 email-validator
+python-multipart
+requests
+beautifulsoup4
+PyPDF2
+pdfplumber
+pytesseract
+pdf2image
+Pillow
+groq

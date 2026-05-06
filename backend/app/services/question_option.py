@@ -5,6 +5,7 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.models.models import Questions
+from app.services.text_cleaner import clean_vietnamese_text
 
 try:
     from app.models.models import QuestionOptions  # type: ignore
@@ -58,6 +59,8 @@ class QuestionOptionService:
                 )
 
         payload["question_id"] = payload_question_id
+        if "content" in payload:
+            payload["content"] = clean_vietnamese_text(str(payload["content"])).strip()
         new_option = QuestionOptions(**payload)
         session.add(new_option)
         session.commit()
@@ -93,6 +96,8 @@ class QuestionOptionService:
 
         for key, value in update_data.items():
             if hasattr(option, key):
+                if key == "content" and value is not None:
+                    value = clean_vietnamese_text(str(value)).strip()
                 setattr(option, key, value)
 
         session.add(option)

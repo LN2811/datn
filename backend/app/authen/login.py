@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 import smtplib
+from typing import Optional
 
 from fastapi import HTTPException, status
 from jose import JWTError, jwt
@@ -21,9 +22,10 @@ class AuthService:
     def verify_password(self, plain_password, hashed_password):
         return pwd_context.verify(plain_password, hashed_password)
 
-    def create_access_token(self, data: dict, expires_minutes: int = 15):
+    def create_access_token(self, data: dict, expires_minutes: Optional[int] = None):
+        effective_expiry = expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES
         to_encode = data.copy()
-        expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=effective_expiry)
         to_encode.update({"exp": expire})
         return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 

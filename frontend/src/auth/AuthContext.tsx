@@ -9,7 +9,6 @@ import {
   useState,
 } from 'react';
 import {
-  getCurrentUserAuthenCurrentUserGet,
   loginAuthLoginPost,
   logoutAuthLogoutPost,
 } from '../generated/sdk.gen';
@@ -18,6 +17,10 @@ import { api } from '../api/axios';
 export type CurrentUser = {
   id: string;
   email: string;
+  account_name?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  avatar_url?: string | null;
   is_active: boolean;
   is_superuser: boolean;
 };
@@ -84,6 +87,10 @@ const parseCurrentUser = (value: unknown): CurrentUser | null => {
   return {
     id: source.id,
     email: source.email,
+    account_name: typeof source.account_name === 'string' ? source.account_name : null,
+    contact_email: typeof source.contact_email === 'string' ? source.contact_email : null,
+    contact_phone: typeof source.contact_phone === 'string' ? source.contact_phone : null,
+    avatar_url: typeof source.avatar_url === 'string' ? source.avatar_url : null,
     is_active: source.is_active,
     is_superuser: source.is_superuser,
   };
@@ -116,11 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshUser = useCallback(async (): Promise<CurrentUser | null> => {
     try {
-      const data = await getCurrentUserAuthenCurrentUserGet({
-        responseStyle: 'data',
-        throwOnError: true,
-      });
-      const parsedUser = parseCurrentUser(data);
+      const response = await api.get('/users/me');
+      const parsedUser = parseCurrentUser(response.data);
       setUser(parsedUser);
       writeSessionHint(Boolean(parsedUser));
       return parsedUser;

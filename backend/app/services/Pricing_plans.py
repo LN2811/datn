@@ -77,3 +77,55 @@ class PricingPlanService:
 
         if used_tokens >= plan.ai_usage_limit:
             raise HTTPException(status_code=403, detail="AI usage limit exceeded")
+
+    def subscribe_plan(
+            self,
+            *,
+            user_id: uuid.UUID,
+            plan_id: uuid.UUID,
+    )-> dict:
+        plan = self.session.get(PricingPlans, plan_id)
+
+        if not plan:
+            raise HTTPException(status_code = 404, detail = "Plan not found")
+
+        if hasattr(plan, "is_active") and getattr(plan, "is_active") is False:
+            raise HTTPException(status_code = 400, detail= "Plan is not active")
+
+        current_subscription = self._get_active_subscription(user_id= user_id)
+        if current_subscription and current_subscription.plan_id == plan_id:
+            return{
+                "id": str(current_subscription.id),
+                "user_id": str(current_subscription.user_id),
+                "plan_id": str(current_subscription.plan_id),
+                "plan_name": plan.name,
+                "is_active": True,
+                "message": "You are already subscribed to this plan",
+            }
+        if current_subscription:
+            current_subscription.end_date = datetime.utcnow()
+            if hasattr(current_subscription, "is_active"):
+                setattr(current_subscription, "is_active", False)
+
+            self.session.add(current_subscription)
+
+        new_subscription = UserSubscriptions(
+            user_id= user_id,
+            plan_id=plan_id,
+            start_date= datetime.utcnow(),
+            end_date= None,
+        )
+        if hasattr(new_subscription, "is_active"):
+            setattr(new_subscription, "is_active", True)
+
+        self.session.add(new_subscription)
+        self.session.commit()
+        self.session.refresh(new_subscription)
+        return{
+            "id": str(new_subscription.id),
+            "user_id": str(new_subscription.user_id),
+            "plan_id": str(new_subscription.plan_id),
+            "plan_name": plan.name,
+            "is_active": True,
+            "message": "Subscribed successfully",
+        }

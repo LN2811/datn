@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_HOST: str = "http://localhost:5173"
+    ADMIN_FRONTEND_HOST: str = "http://localhost:5174"
     ENVIRONMENT: Literal[
         "local", "staging", "production", "uat", "development"
     ] = "local"
@@ -58,12 +59,18 @@ class Settings(BaseSettings):
     ] = []
     CORE_ADMIN_BASE_URL: str = "http://localhost:3300"
     APP_CODE: str = "CM"
+    GROQ_API_KEY: str | None = None
+    TESSERACT_CMD: str | None = None
+    POPPLER_PATH: str | None = None
+    OCR_LANGS: str = "vie+eng"
+    OCR_PDF_DPI: int = 200
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
         origins = [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS]
         origins.extend(expand_localhost_origins(self.FRONTEND_HOST))
+        origins.extend(expand_localhost_origins(self.ADMIN_FRONTEND_HOST))
         return list(dict.fromkeys(origins))
 
     PROJECT_NAME: str
