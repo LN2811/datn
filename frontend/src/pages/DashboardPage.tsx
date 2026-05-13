@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
   ArrowRight,
-  BookOpen,
   Brain,
   CheckCircle2,
   CircleAlert,
   Clock3,
-  FileText,
   FolderKanban,
   GraduationCap,
   LayoutDashboard,
@@ -96,6 +94,16 @@ type CreatedProject = {
   description?: string | null;
 };
 
+type CurrentSubscription = {
+  id: string;
+  user_id: string;
+  plan_id: string;
+  plan_name?: string|null;
+  is_active: boolean;
+  start_date: string| null;
+  end_date: string|null;
+};
+
 const getDisplayName = (accountName?: string | null, email?: string | null) => {
   if (accountName?.trim()) {
     return accountName.trim();
@@ -150,23 +158,6 @@ const formatDateTime = (value?: string | null) => {
   });
 };
 
-const formatShortDate = (value?: string | null) => {
-  if (!value) {
-    return 'Chua cap nhat';
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return 'Chua cap nhat';
-  }
-
-  return parsed.toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-};
-
 const getReadinessMeta = (level?: string | null) => {
   switch (level) {
     case 'high':
@@ -195,17 +186,6 @@ const getReadinessMeta = (level?: string | null) => {
       };
   }
 };
-
-const getAssignmentState = (assignment: AssignmentOverview) =>
-  assignment.is_submitted
-    ? {
-        label: 'Da nop',
-        tone: 'done' as const,
-      }
-    : {
-        label: 'Chua nop',
-        tone: 'pending' as const,
-      };
 
 const getPriorityRank = (project: ProjectOverview) => {
   const readinessLevel = project.latest_assessment?.readiness_level;
@@ -293,6 +273,7 @@ export function DashboardPage() {
   const [createProjectStatus, setCreateProjectStatus] = useState('');
   const [projectName, setProjectName] = useState('');
   const [projectDescription, setProjectDescription] = useState('');
+  const [subscription, setsubscription] = useState<CurrentSubscription | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -323,6 +304,26 @@ export function DashboardPage() {
       isMounted = false;
     };
   }, []);
+
+  const fetchSubscription = async () =>{
+    try{
+      setIsLoading(true);
+      setError("");
+      const respont = await api.get<CurrentSubscription | null>("/pricing-plans/subscriptions/me/current",);
+      setsubscription(respont.data);
+    }catch{
+      setError("khong the kiem tra goi dich vu hien tai");
+      setsubscription(null);
+    }finally{
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() =>{
+    fetchSubscription();
+  },[]);
+
+  const hasActiveSubscription = Boolean(subscription?.is_active);
 
   const resetCreateProjectForm = () => {
     setProjectName('');
@@ -410,7 +411,11 @@ export function DashboardPage() {
         <header className="study-dashboard__bar">
           <div className="study-dashboard__bar-copy">
             <span className="study-dashboard__kicker">Learning workspace</span>
-            <h1>Dashboard</h1>
+            {hasActiveSubscription?(
+              <h1>Dashboard</h1>
+            ): (
+              <Link className='upgrade' to="/upgrade">Nâng cấp</Link>
+            )}
           </div>
 
           <div className="study-dashboard__bar-actions">

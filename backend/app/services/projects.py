@@ -22,6 +22,7 @@ from app.models.models import (
     LearningMaterials,
     MaterialChunk,
     Projects,
+    QuestionOptions,
     Questions,
     Users,
 )
@@ -653,6 +654,14 @@ class ProjectService:
                 Answers,
                 session.exec(select(Answers).where(Answers.attempt_id.in_(attempt_ids))).all(),
                 deleted_answer_ids,
+            )
+        if question_ids:
+            self._delete_records(
+                session,
+                QuestionOptions,
+                session.exec(
+                    select(QuestionOptions).where(QuestionOptions.question_id.in_(question_ids))
+                ).all(),
             )
         if submission_ids:
             self._delete_records(

@@ -26,7 +26,7 @@ import { useAuth } from '../auth/AuthContext.tsx';
 
 import './AdminPage.css';
 
-type AdminSection = 'users' | 'stats' | 'profile';
+type AdminSection = 'users' | 'plans' | 'stats' | 'profile';
 
 type AdminUser = {
   id: string;
@@ -74,6 +74,24 @@ type PlanStat = {
   count: number;
 };
 
+type PricingPlan = {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  ai_usage_limit?: number | null;
+  billing_cycle?: string | null;
+  max_project?: number | null;
+  max_projects?: number | null;
+  is_active: boolean;
+  is_featured: boolean;
+  display_order: number;
+  bagde_text?: string | null;
+  badge_text?: string | null;
+  created_at?: string | null;
+  update_at?: string | null;
+};
+
 type AdminStats = {
   year: number;
   totals: {
@@ -90,6 +108,7 @@ type AdminStats = {
 
 type AdminData = {
   users: UsersResponse;
+  plans: PricingPlan[];
   usage: AIUsageStats;
   feedback: FeedbackStats;
   stats: AdminStats;
@@ -114,6 +133,20 @@ type ProfileFormState = {
   avatar_url: string;
 };
 
+type PlanFormState = {
+  id: string | null;
+  name: string;
+  description: string;
+  price: string;
+  ai_usage_limit: string;
+  billing_cycle: string;
+  max_project: string;
+  is_active: boolean;
+  is_featured: boolean;
+  display_order: string;
+  bagde_text: string;
+};
+
 const emptyUserForm: UserFormState = {
   id: null,
   email: '',
@@ -124,6 +157,20 @@ const emptyUserForm: UserFormState = {
   avatar_url: '',
   is_active: true,
   is_superuser: false,
+};
+
+const emptyPlanForm: PlanFormState = {
+  id: null,
+  name: '',
+  description: '',
+  price: '0',
+  ai_usage_limit: '',
+  billing_cycle: 'monthly',
+  max_project: '',
+  is_active: true,
+  is_featured: false,
+  display_order: '0',
+  bagde_text: '',
 };
 
 const currentYear = new Date().getFullYear();
@@ -163,6 +210,22 @@ const formatCurrency = (value?: number | null) =>
     currency: 'USD',
     maximumFractionDigits: 4,
   }).format(toFiniteNumber(value));
+
+const formatVnd = (value?: number | null) =>
+  new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(toFiniteNumber(value));
+
+const formatLimit = (value?: number | null, unit = '') => {
+  if (value === null || value === undefined) {
+    return 'Không giới hạn';
+  }
+
+  const suffix = unit ? ` ${unit}` : '';
+  return `${formatNumber(value)}${suffix}`;
+};
 
 const formatDate = (value?: string | null) => {
   if (!value) {
@@ -213,6 +276,21 @@ const formFromUser = (item: AdminUser): UserFormState => ({
   is_superuser: item.is_superuser,
 });
 
+const formFromPlan = (item: PricingPlan): PlanFormState => ({
+  id: item.id,
+  name: item.name,
+  description: item.description ?? '',
+  price: String(item.price ?? 0),
+  ai_usage_limit: item.ai_usage_limit === null || item.ai_usage_limit === undefined ? '' : String(item.ai_usage_limit),
+  billing_cycle: item.billing_cycle || 'monthly',
+  max_project:
+    item.max_project === null || item.max_project === undefined ? '' : String(item.max_project),
+  is_active: item.is_active,
+  is_featured: item.is_featured,
+  display_order: String(item.display_order ?? 0),
+  bagde_text: item.bagde_text ?? item.badge_text ?? '',
+});
+
 const buildUserPayload = (form: UserFormState) => {
   const payload: Record<string, unknown> = {
     email: form.email.trim(),
@@ -231,8 +309,22 @@ const buildUserPayload = (form: UserFormState) => {
   return payload;
 };
 
+const buildPlanPayload = (form: PlanFormState) => ({
+  name: form.name.trim(),
+  description: form.description.trim() || null,
+  price: Number(form.price || 0),
+  ai_usage_limit: form.ai_usage_limit.trim() ? Number(form.ai_usage_limit) : null,
+  billing_cycle: form.billing_cycle,
+  max_project: form.max_project.trim() ? Number(form.max_project) : null,
+  is_active: form.is_active,
+  is_featured: form.is_featured,
+  display_order: form.display_order.trim() ? Number(form.display_order) : 0,
+  bagde_text: form.bagde_text.trim() || null,
+});
+
 const tabItems: Array<{ section: AdminSection; icon: LucideIcon; label: string }> = [
   { section: 'users', icon: UsersRound, label: 'Quản lý người dùng' },
+  { section: 'plans', icon: Sparkles, label: 'Gói nâng cấp' },
   { section: 'stats', icon: BarChart3, label: 'Thống kê' },
   { section: 'profile', icon: ShieldCheck, label: 'Thông tin admin' },
 ];
@@ -246,6 +338,7 @@ export function AdminPage() {
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [searchTerm, setSearchTerm] = useState('');
   const [userForm, setUserForm] = useState<UserFormState>(emptyUserForm);
+  const [planForm, setPlanForm] = useState<PlanFormState>(emptyPlanForm);
   const [profileForm, setProfileForm] = useState<ProfileFormState>({
     account_name: '',
     contact_email: '',
@@ -255,13 +348,14 @@ export function AdminPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isSavingUser, setIsSavingUser] = useState(false);
+  const [isSavingPlan, setIsSavingPlan] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
 
   const loadAdminData = async (year = selectedYear) => {
-    const [usersResponse, usageResponse, feedbackResponse, statsResponse] = await Promise.all([
+    const [usersResponse, plansResponse, usageResponse, feedbackResponse, statsResponse] = await Promise.all([
       api.get<UsersResponse>('/users', {
         params: {
           page_size: 100,
@@ -270,6 +364,7 @@ export function AdminPage() {
           sort_order: 'asc',
         },
       }),
+      api.get<PricingPlan[]>('/pricing-plans'),
       api.get<AIUsageStats>('/ai-usage-logs/admin/stats'),
       api.get<FeedbackStats>('/ai-code-feedback/admin/stats'),
       api.get<AdminStats>('/admin/stats', {
@@ -279,6 +374,7 @@ export function AdminPage() {
 
     setData({
       users: usersResponse.data,
+      plans: plansResponse.data,
       usage: usageResponse.data,
       feedback: feedbackResponse.data,
       stats: statsResponse.data,
@@ -322,10 +418,12 @@ export function AdminPage() {
   }, [user]);
 
   const users = data?.users.data ?? [];
+  const plans = data?.plans ?? [];
   const totalUsers = data?.users.count ?? users.length;
   const activeUsers = data?.stats.totals.active_users ?? users.filter((item) => item.is_active).length;
   const adminUsers = data?.stats.totals.admin_users ?? users.filter((item) => item.is_superuser).length;
   const subscriptionUpdates = data?.stats.totals.subscription_updates ?? 0;
+  const activePlans = plans.filter((item) => item.is_active).length;
   const topUsers = useMemo(
     () => (data?.usage.top_users ?? []).map(normalizeTopUser).filter(Boolean) as TopUsageUser[],
     [data?.usage.top_users],
@@ -433,6 +531,50 @@ export function AdminPage() {
     setUserForm(emptyUserForm);
     setNotice('');
     setError('');
+  };
+
+  const handleSelectPlan = (item: PricingPlan) => {
+    setPlanForm(formFromPlan(item));
+    setNotice('');
+    setError('');
+  };
+
+  const handleResetPlanForm = () => {
+    setPlanForm(emptyPlanForm);
+    setNotice('');
+    setError('');
+  };
+
+  const handleSubmitPlan = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSavingPlan(true);
+    setNotice('');
+    setError('');
+
+    try {
+      const payload = buildPlanPayload(planForm);
+      if (!payload.name) {
+        throw new Error('Tên gói là bắt buộc.');
+      }
+      if (!Number.isFinite(payload.price) || payload.price < 0) {
+        throw new Error('Giá gói phải lớn hơn hoặc bằng 0.');
+      }
+
+      if (planForm.id) {
+        await api.patch(`/pricing-plans/${planForm.id}`, payload);
+        setNotice('Đã cập nhật gói nâng cấp.');
+      } else {
+        await api.post('/pricing-plans', payload);
+        setNotice('Đã tạo gói nâng cấp mới.');
+      }
+
+      await loadAdminData(selectedYear);
+      setPlanForm(emptyPlanForm);
+    } catch (saveError) {
+      setError(getErrorMessage(saveError));
+    } finally {
+      setIsSavingPlan(false);
+    }
   };
 
   const handleSubmitUser = async (event: FormEvent<HTMLFormElement>) => {
@@ -708,6 +850,238 @@ export function AdminPage() {
                 className="admin-page__button admin-page__button--ghost"
                 type="button"
                 onClick={handleResetUserForm}
+              >
+                <X size={17} />
+                Làm trống
+              </button>
+            </div>
+          </form>
+        </section>
+      </aside>
+    </section>
+  );
+
+  const renderPlansPanel = () => (
+    <section className="admin-page__layout admin-page__layout--management">
+      <section className="admin-page__panel admin-page__panel--wide">
+        <div className="admin-page__panel-head">
+          <div>
+            <span>Pricing plans</span>
+            <h2>Danh sách gói nâng cấp</h2>
+          </div>
+          <div className="admin-page__plan-summary">
+            <strong>{formatNumber(plans.length)}</strong>
+            <span>{formatNumber(activePlans)} đang hiển thị</span>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <div className="admin-page__empty">
+            <Clock3 size={18} />
+            <span>Đang tải danh sách gói nâng cấp...</span>
+          </div>
+        ) : plans.length === 0 ? (
+          <div className="admin-page__empty">
+            <CircleAlert size={18} />
+            <span>Chưa có gói nâng cấp nào.</span>
+          </div>
+        ) : (
+          <div className="admin-page__table-wrap">
+            <table className="admin-page__table admin-page__table--plans">
+              <thead>
+                <tr>
+                  <th>Gói</th>
+                  <th>Gia</th>
+                  <th>AI limit</th>
+                  <th>Project</th>
+                  <th>Chu kỳ</th>
+                  <th>Trạng thái</th>
+                  <th>Thao tác</th>
+                </tr>
+              </thead>
+              <tbody>
+                {plans.map((item) => {
+                  const maxProject = item.max_project ?? item.max_projects;
+                  const badgeText = item.bagde_text ?? item.badge_text;
+
+                  return (
+                    <tr key={item.id}>
+                      <td>
+                        <div className="admin-page__user-cell">
+                          <strong>{item.name}</strong>
+                          {item.description ? <span>{item.description}</span> : null}
+                          {badgeText ? <span>{badgeText}</span> : null}
+                        </div>
+                      </td>
+                      <td>{formatVnd(item.price)}</td>
+                      <td>{formatLimit(item.ai_usage_limit, 'token')}</td>
+                      <td>{formatLimit(maxProject, 'project')}</td>
+                      <td>{item.billing_cycle || 'monthly'}</td>
+                      <td>
+                        <span
+                          className={`admin-page__pill ${
+                            item.is_active ? 'admin-page__pill--active' : 'admin-page__pill--inactive'
+                          }`}
+                        >
+                          {item.is_active ? 'Đang bật' : 'Đang ẩn'}
+                        </span>
+                        {item.is_featured ? (
+                          <span className="admin-page__pill admin-page__pill--admin">Nổi bật</span>
+                        ) : null}
+                      </td>
+                      <td>
+                        <button
+                          className="admin-page__icon-button"
+                          type="button"
+                          onClick={() => handleSelectPlan(item)}
+                          title="Sửa gói nâng cấp"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <aside className="admin-page__side">
+        <section className="admin-page__panel">
+          <div className="admin-page__panel-head">
+            <div>
+              <span>{planForm.id ? 'Cập nhật' : 'Tạo mới'}</span>
+              <h2>{planForm.id ? 'Thông tin gói' : 'Gói nâng cấp mới'}</h2>
+            </div>
+            <Sparkles size={20} />
+          </div>
+
+          <form className="admin-page__form" onSubmit={(event) => void handleSubmitPlan(event)}>
+            <label>
+              Tên gói
+              <input
+                value={planForm.name}
+                onChange={(event) => setPlanForm((prev) => ({ ...prev, name: event.target.value }))}
+                required
+              />
+            </label>
+            <label>
+              Mô tả
+              <textarea
+                value={planForm.description}
+                onChange={(event) =>
+                  setPlanForm((prev) => ({ ...prev, description: event.target.value }))
+                }
+                rows={3}
+              />
+            </label>
+            <div className="admin-page__form-grid">
+              <label>
+                Gia VND
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={planForm.price}
+                  onChange={(event) => setPlanForm((prev) => ({ ...prev, price: event.target.value }))}
+                  required
+                />
+              </label>
+              <label>
+                Chu kỳ
+                <select
+                  value={planForm.billing_cycle}
+                  onChange={(event) =>
+                    setPlanForm((prev) => ({ ...prev, billing_cycle: event.target.value }))
+                  }
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                  <option value="lifetime">Lifetime</option>
+                </select>
+              </label>
+            </div>
+            <div className="admin-page__form-grid">
+              <label>
+                AI usage limit
+                <input
+                  type="number"
+                  min="0"
+                  value={planForm.ai_usage_limit}
+                  onChange={(event) =>
+                    setPlanForm((prev) => ({ ...prev, ai_usage_limit: event.target.value }))
+                  }
+                  placeholder="Trống để không giới hạn"
+                />
+              </label>
+              <label>
+                Max project
+                <input
+                  type="number"
+                  min="0"
+                  value={planForm.max_project}
+                  onChange={(event) =>
+                    setPlanForm((prev) => ({ ...prev, max_project: event.target.value }))
+                  }
+                  placeholder="Trống để không giới hạn"
+                />
+              </label>
+            </div>
+            <div className="admin-page__form-grid">
+              <label>
+                Thứ tự hiển thị
+                <input
+                  type="number"
+                  value={planForm.display_order}
+                  onChange={(event) =>
+                    setPlanForm((prev) => ({ ...prev, display_order: event.target.value }))
+                  }
+                />
+              </label>
+              <label>
+                Badge
+                <input
+                  value={planForm.bagde_text}
+                  onChange={(event) =>
+                    setPlanForm((prev) => ({ ...prev, bagde_text: event.target.value }))
+                  }
+                  placeholder="Phổ biến, Tốt nhất..."
+                />
+              </label>
+            </div>
+            <div className="admin-page__toggle-row">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={planForm.is_active}
+                  onChange={(event) =>
+                    setPlanForm((prev) => ({ ...prev, is_active: event.target.checked }))
+                  }
+                />
+                Hiển thị gói
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={planForm.is_featured}
+                  onChange={(event) =>
+                    setPlanForm((prev) => ({ ...prev, is_featured: event.target.checked }))
+                  }
+                />
+                Gói nổi bật
+              </label>
+            </div>
+            <div className="admin-page__form-actions">
+              <button className="admin-page__button admin-page__button--primary" type="submit" disabled={isSavingPlan}>
+                <Save size={17} />
+                {isSavingPlan ? 'Đang lưu...' : 'Lưu gói'}
+              </button>
+              <button
+                className="admin-page__button admin-page__button--ghost"
+                type="button"
+                onClick={handleResetPlanForm}
               >
                 <X size={17} />
                 Làm trống
@@ -1002,6 +1376,7 @@ export function AdminPage() {
         </section>
 
         {activeSection === 'users' ? renderUsersPanel() : null}
+        {activeSection === 'plans' ? renderPlansPanel() : null}
         {activeSection === 'stats' ? renderStatsPanel() : null}
         {activeSection === 'profile' ? renderProfilePanel() : null}
       </div>

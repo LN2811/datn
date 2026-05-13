@@ -1,19 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import {
-  ArrowRight,
-  BadgeCheck,
-  KeyRound,
-  Mail,
-  Sparkles,
-  UserPlus,
-} from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, KeyRound, Mail, UserPlus } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
 
 import { useAuth } from '@/auth/AuthContext';
 
 import './RegisterForm.css';
-import logo from '../../../assets/logo1.svg'
+import logo from '../../../assets/logo1.svg';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -22,12 +14,14 @@ const validateRegisterInput = (
   password: string,
   confirmPassword: string,
   acceptedPolicy: boolean,
-): string | null => {
-  if (!email.trim()) {
+) => {
+  const normalizedEmail = email.trim();
+
+  if (!normalizedEmail) {
     return 'Vui long nhap email.';
   }
 
-  if (!emailRegex.test(email.trim())) {
+  if (!emailRegex.test(normalizedEmail)) {
     return 'Email khong dung dinh dang.';
   }
 
@@ -43,7 +37,7 @@ const validateRegisterInput = (
     return 'Vui long dong y voi dieu khoan truoc khi dang ky.';
   }
 
-  return null;
+  return '';
 };
 
 export function RegisterForm() {
@@ -54,12 +48,11 @@ export function RegisterForm() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [acceptedPolicy, setAcceptedPolicy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState('');
   const [status, setStatus] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showpassword, setshowpassword] = useState(false);
-  const [showconfirmPassword, setshowconfirmPassword] = useState(false);
-
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -79,13 +72,12 @@ export function RegisterForm() {
     }
 
     setIsSubmitting(true);
-
     try {
       await register(email.trim(), password);
-      setStatus('Dang ky thanh cong.');
-      setTimeout(() => {
-        navigate('/login')
-      }, 1000);
+      setStatus('Dang ky thanh cong. Dang chuyen sang trang dang nhap...');
+      window.setTimeout(() => {
+        navigate('/login', { replace: true });
+      }, 800);
     } catch (submitError) {
       setError(
         submitError instanceof Error && submitError.message
@@ -99,56 +91,22 @@ export function RegisterForm() {
 
   return (
     <main className="register-page">
-      <div
-        className="register-page__glow register-page__glow--left"
-        aria-hidden="true"
-      />
-      <div
-        className="register-page__glow register-page__glow--right"
-        aria-hidden="true"
-      />
-
       <section className="register-page__layout">
         <aside className="register-page__hero">
           <Link className="register-page__brand" to="/">
             LOC Tracking
           </Link>
 
-          <span className="register-page__eyebrow">Account onboarding</span>
-          <div className='logo-login'>
-            <img src={logo} alt="logo" />
+          <div className="register-page__logo">
+            <img src={logo} alt="LOC Tracking" />
           </div>
 
-          <div className="register-page__feature-list">
-            <article className="register-page__feature">
-              <div className="register-page__feature-icon">
-                <UserPlus size={20} />
-              </div>
-              <div>
-                <h2>Clear onboarding</h2>
-                <p>Thong tin can thiet duoc nhom gon tren mot form duy nhat.</p>
-              </div>
-            </article>
-
-            <article className="register-page__feature">
-              <div className="register-page__feature-icon">
-                <BadgeCheck size={20} />
-              </div>
-              <div>
-                <h2>Validation-ready</h2>
-                <p>Email, mat khau va xac nhan mat khau da co validate.</p>
-              </div>
-            </article>
-
-            <article className="register-page__feature">
-              <div className="register-page__feature-icon">
-                <Sparkles size={20} />
-              </div>
-              <div>
-                <h2>Ready for API hookup</h2>
-                <p>Form nay goi backend public register va tao cookie dang nhap.</p>
-              </div>
-            </article>
+          <div className="register-page__feature">
+            <UserPlus size={24} />
+            <div>
+              <h1>Tao tai khoan</h1>
+              <p>Dang ky tai khoan user de bat dau quan ly project va bai hoc.</p>
+            </div>
           </div>
         </aside>
 
@@ -171,10 +129,6 @@ export function RegisterForm() {
             Dien email va mat khau de tao tai khoan user thong thuong.
           </p>
 
-          <div className="register-page__info">
-            Tai khoan dang ky moi se duoc tao voi quyen user thuong, khong phai admin.
-          </div>
-
           <form className="register-page__form" onSubmit={handleSubmit}>
             <div className="register-page__field">
               <label className="register-page__label" htmlFor="registerEmail">
@@ -193,55 +147,59 @@ export function RegisterForm() {
               />
             </div>
 
-            <div className="register-page__field-grid">
-              <div className="register-page__field">
-                <label className="register-page__label" htmlFor="registerPassword">
-                  Mat khau
-                </label>
-                <div className="register-page__input-shell">
-                  <KeyRound size={18} />
-                  <input
-                    id="registerPassword"
-                    name="registerPassword"
-                    type={showpassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    className="register-page__input register-page__input--embedded"
-                    placeholder="Toi thieu 8 ky tu"
-                    required
-                  />
-                  <button
+            <div className="register-page__field">
+              <label className="register-page__label" htmlFor="registerPassword">
+                Mat khau
+              </label>
+              <div className="register-page__input-shell">
+                <KeyRound size={18} />
+                <input
+                  id="registerPassword"
+                  name="registerPassword"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className="register-page__input register-page__input--embedded"
+                  placeholder="Toi thieu 8 ky tu"
+                  required
+                />
+                <button
                   type="button"
-                  onClick={() =>setshowpassword(!showpassword)}
-                  className="passWord-toggle"
-                  >
-                    {showpassword? <EyeOff size={18}/>:<Eye size={18}></Eye>}
-                  </button>
-                </div>
+                  className="register-page__password-toggle"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? 'An mat khau' : 'Hien mat khau'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
+            </div>
 
-              <div className="register-page__field">
-                <label className="register-page__label" htmlFor="confirmPassword">
-                  Xac nhan mat khau
-                </label>
-                <div className="register-page__input-shell">
-                  <KeyRound size={18} />
-                  <input
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    type={showconfirmPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                    className="register-page__input register-page__input--embedded"
-                    placeholder="Nhap lai mat khau"
-                    required
-                  />
-                  <button type='button' onClick={() =>setshowconfirmPassword(!showconfirmPassword)} className='passWord-toggle'>
-                    {showconfirmPassword? <EyeOff size={18}></EyeOff> : <Eye size={18}></Eye>}
-                  </button>
-                </div>
+            <div className="register-page__field">
+              <label className="register-page__label" htmlFor="confirmPassword">
+                Xac nhan mat khau
+              </label>
+              <div className="register-page__input-shell">
+                <KeyRound size={18} />
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  className="register-page__input register-page__input--embedded"
+                  placeholder="Nhap lai mat khau"
+                  required
+                />
+                <button
+                  type="button"
+                  className="register-page__password-toggle"
+                  onClick={() => setShowConfirmPassword((value) => !value)}
+                  aria-label={showConfirmPassword ? 'An mat khau' : 'Hien mat khau'}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
             </div>
 
@@ -251,19 +209,13 @@ export function RegisterForm() {
                 checked={acceptedPolicy}
                 onChange={(event) => setAcceptedPolicy(event.target.checked)}
               />
-              <span>
-                Toi dong y voi dieu khoan su dung va tao tai khoan user thuong.
-              </span>
+              <span>Toi dong y voi dieu khoan su dung.</span>
             </label>
 
             {error ? <p className="register-page__error">{error}</p> : null}
             {status ? <p className="register-page__status">{status}</p> : null}
 
-            <button
-              className="register-page__submit"
-              type="submit"
-              disabled={isSubmitting}
-            >
+            <button className="register-page__submit" type="submit" disabled={isSubmitting}>
               {isSubmitting ? 'Dang xu ly...' : 'Dang ky'}
             </button>
           </form>

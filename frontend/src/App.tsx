@@ -1,7 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import './App.css';
 import { RequireAuth } from './auth/RequireAuth.tsx';
-import { RequireAdmin } from './auth/RequireAdmin.tsx';
 import { DashboardPage } from './pages/DashboardPage.tsx';
 import { ProfilePage } from './pages/ProfilePage.tsx';
 import { RegisterForm } from './components/register/RegisterForm.tsx';
@@ -9,10 +8,12 @@ import HomePage from './pages/HomePage.tsx';
 import { LoginForm } from './components/LoginForm.tsx';
 import ForgotPasswordPage from './pages/forgot_password/index.tsx';
 import { QuizPage } from './pages/QuizPage.tsx';
+import { MomoPaymentResultPage } from './pages/MomoPaymentResultPage.tsx';
 import Project from './components/home/project.tsx';
 import Lession from './components/home/lession.tsx';
 import ProjectsPage from './components/home/projects.tsx';
 import Upgrade from './components/upgared/upgrade.tsx'
+import OrderPage from './components/order/OrderPage.tsx';
 
 
 function App() {
@@ -34,6 +35,8 @@ function App() {
         <Route path="/lession/:moduleId" element={<Lession />} />
         <Route path="/lession/:moduleId/quiz" element={<QuizPage />} />
         <Route path="/upgrade" element={<Upgrade/>}/>
+        <Route path="/order/:planId" element={<OrderPage />} />
+        <Route path="/payment/momo/result" element={<MomoPaymentResultPage />} />
 
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

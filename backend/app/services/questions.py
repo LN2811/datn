@@ -1,7 +1,9 @@
 import json
 import logging
+import re
+import unicodedata
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import HTTPException
 from sqlmodel import Session, select
@@ -18,13 +20,47 @@ from app.models.models import (
     Questions,
 )
 from app.services.ai_service import call_llm
-from app.services.quiz_templates import (
-    QUESTIONS_PER_QUIZ,
-    build_vietnamese_quiz_questions,
-)
+from app.services.quiz_templates import QUESTIONS_PER_QUIZ
 from app.services.text_cleaner import clean_vietnamese_text, has_vietnamese_mark
 
 logger = logging.getLogger("uvicorn.error")
+
+MAX_QUIZ_SOURCE_CHARS = 2800
+QUIZ_COMPLETION_TOKENS = 1800
+QUIZ_RATE_LIMIT_COOLDOWN_SECONDS = 60
+MIN_QUIZ_SOURCE_WORDS = 30
+_QUIZ_RATE_LIMIT_RETRY_AT: datetime | None = None
+GENERIC_TEMPLATE_PATTERNS = (
+    "sau khi hoan thanh",
+    "hanh dong tiep theo hop ly",
+    "muon danh gia muc do hieu",
+    "muc tieu chinh cua bai hoc",
+    "khi hoc phan",
+    "co nhieu thong tin",
+    "chia nho noi dung",
+    "dau hieu nao cho thay ban da hieu bai hoc",
+    "cach tu kiem tra",
+    "tu kiem tra sau khi hoc",
+    "ghi nho noi dung",
+    "loi hoc tap nao nen tranh",
+    "trinh bay lai",
+    "khi so sanh cac y",
+    "khi ap dung kien thuc",
+    "xac dinh dung yeu cau",
+    "neu chua hieu mot doan",
+    "tu dat cau hoi",
+)
+LESSON_SOURCE_SECTION_MARKERS = (
+    "noi dung tu tai lieu",
+    "noi dung nguon",
+    "source text",
+    "source_text",
+)
+LESSON_REVIEW_SECTION_MARKERS = (
+    "cau hoi on tap",
+    "cau hoi tu luyen",
+    "cau hoi kiem tra",
+)
 
 
 class QuestionService:
@@ -60,6 +96,61 @@ class QuestionService:
                 lines = lines[1:]
             cleaned = "\n".join(lines).strip()
         return cleaned
+
+    @classmethod
+    def _extract_json_candidate(cls, content: str) -> str:
+        cleaned = cls._strip_code_fences(content)
+        if not cleaned:
+            return ""
+        if (
+            (cleaned.startswith("{") and cleaned.endswith("}"))
+            or (cleaned.startswith("[") and cleaned.endswith("]"))
+        ):
+            return cleaned
+
+        object_start = cleaned.find("{")
+        object_end = cleaned.rfind("}")
+        array_start = cleaned.find("[")
+        array_end = cleaned.rfind("]")
+
+        candidates: list[str] = []
+        if object_start != -1 and object_end > object_start:
+            candidates.append(cleaned[object_start : object_end + 1].strip())
+        if array_start != -1 and array_end > array_start:
+            candidates.append(cleaned[array_start : array_end + 1].strip())
+
+        return max(candidates, key=len) if candidates else cleaned
+
+    @staticmethod
+    def _rate_limit_retry_at() -> datetime | None:
+        retry_at = _QUIZ_RATE_LIMIT_RETRY_AT
+        if retry_at is not None and retry_at > datetime.utcnow():
+            return retry_at
+        return None
+
+    @staticmethod
+    def _is_rate_limit_error(exc: Exception) -> bool:
+        error_text = str(exc).lower()
+        return (
+            "ratelimit" in type(exc).__name__.lower()
+            or "rate limit" in error_text
+            or "rate_limit" in error_text
+            or "429" in error_text
+        )
+
+    @staticmethod
+    def _mark_rate_limit_cooldown(exc: Exception) -> None:
+        global _QUIZ_RATE_LIMIT_RETRY_AT
+
+        retry_seconds = QUIZ_RATE_LIMIT_COOLDOWN_SECONDS
+        match = re.search(r"try again in\s+([0-9.]+)s", str(exc), flags=re.IGNORECASE)
+        if match:
+            try:
+                retry_seconds = max(retry_seconds, int(float(match.group(1))) + 2)
+            except ValueError:
+                pass
+
+        _QUIZ_RATE_LIMIT_RETRY_AT = datetime.utcnow() + timedelta(seconds=retry_seconds)
 
     def _create_question_record(
         self,
@@ -134,15 +225,110 @@ class QuestionService:
 
     @staticmethod
     def _build_module_questions(module: CurriculumModules) -> list[dict]:
-        title = clean_vietnamese_text(module.title).strip() if module.title else "bài học này"
-        description = clean_vietnamese_text(module.description or "").strip()
-        return build_vietnamese_quiz_questions(title=title, description=description)
+        return []
 
     @staticmethod
     def _is_legacy_unaccented_question_set(questions: list[Questions]) -> bool:
         if not questions:
             return False
         return all(not has_vietnamese_mark(question.content or "") for question in questions)
+
+    @staticmethod
+    def _fold_for_matching(value: str) -> str:
+        normalized = unicodedata.normalize("NFD", value or "")
+        folded = "".join(
+            char
+            for char in normalized
+            if unicodedata.category(char) != "Mn"
+        )
+        return folded.replace("đ", "d").replace("Đ", "d").lower()
+
+    @classmethod
+    def _is_generic_template_content(cls, content: str) -> bool:
+        folded_content = cls._fold_for_matching(content)
+        return any(pattern in folded_content for pattern in GENERIC_TEMPLATE_PATTERNS)
+
+    @classmethod
+    def _is_generic_template_question_set(cls, questions: list[Questions]) -> bool:
+        if not questions:
+            return False
+
+        generic_count = 0
+        for question in questions:
+            if cls._is_generic_template_content(question.content or ""):
+                generic_count += 1
+
+        return generic_count > (len(questions) / 2)
+
+    @classmethod
+    def _filter_generic_template_questions(
+        cls,
+        questions: list[Questions],
+    ) -> list[Questions]:
+        return [
+            question
+            for question in questions
+            if not cls._is_generic_template_content(question.content or "")
+        ]
+
+    @staticmethod
+    def _limit_source_text(source_text: str) -> str:
+        cleaned = clean_vietnamese_text(source_text or "").strip()
+        if len(cleaned) <= MAX_QUIZ_SOURCE_CHARS:
+            return cleaned
+
+        limited = cleaned[:MAX_QUIZ_SOURCE_CHARS].rsplit("\n", 1)[0].strip()
+        return limited or cleaned[:MAX_QUIZ_SOURCE_CHARS].strip()
+
+    @staticmethod
+    def _has_enough_source_text(source_text: str) -> bool:
+        words = re.findall(r"[0-9A-Za-zÀ-ỹĐđ]+", source_text or "")
+        return len(words) >= MIN_QUIZ_SOURCE_WORDS
+
+    @classmethod
+    def _extract_lesson_source_text(cls, lesson_content: str | None) -> str:
+        cleaned = clean_vietnamese_text(lesson_content or "").strip()
+        if not cleaned:
+            return ""
+
+        lines = cleaned.splitlines()
+        source_lines: list[str] = []
+        in_source_section = False
+        for line in lines:
+            stripped = line.strip()
+            folded_header = cls._fold_for_matching(stripped.lstrip("#").strip())
+            if stripped.startswith("#") and any(
+                marker in folded_header for marker in LESSON_SOURCE_SECTION_MARKERS
+            ):
+                in_source_section = True
+                continue
+
+            if in_source_section and stripped.startswith("#"):
+                break
+
+            if in_source_section:
+                source_lines.append(line)
+
+        source_section = "\n".join(source_lines).strip()
+        if cls._has_enough_source_text(source_section):
+            return cls._limit_source_text(source_section)
+
+        kept_lines: list[str] = []
+        skip_section = False
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                folded_header = cls._fold_for_matching(stripped.lstrip("#").strip())
+                skip_section = any(
+                    marker in folded_header for marker in LESSON_REVIEW_SECTION_MARKERS
+                )
+                if skip_section:
+                    continue
+
+            if not skip_section:
+                kept_lines.append(line)
+
+        return cls._limit_source_text("\n".join(kept_lines))
 
     def _create_template_questions(
         self,
@@ -156,44 +342,28 @@ class QuestionService:
         start_index: int = 0,
         count: int = QUESTIONS_PER_QUIZ,
     ) -> list[Questions]:
-        created_questions: list[Questions] = []
-        generated_questions = build_vietnamese_quiz_questions(
-            title=title,
-            description=description,
-            count=QUESTIONS_PER_QUIZ,
-        )
-
-        for generated_question in generated_questions[start_index : start_index + count]:
-            question = self._create_question_record(
-                session=session,
-                assignment=assignment,
-                criteria_id=criteria_id,
-                content=generated_question["content"],
-                question_type="single_choice",
-                explanation=generated_question.get("explanation"),
-                generated_by="system",
-            )
-            if curriculum_module_id is not None:
-                question.curriculum_module_id = curriculum_module_id
-                session.add(question)
-            self._create_option_records(
-                session=session,
-                question=question,
-                raw_options=generated_question.get("options"),
-            )
-            created_questions.append(question)
-
-        return created_questions
+        return []
 
     @staticmethod
-    def _normalize_options(raw_options) -> list[dict]:
-        if not isinstance(raw_options, list):
+    def _coerce_correct_index(raw_value) -> int | None:
+        if raw_value is None:
+            return None
+        try:
+            value = int(raw_value)
+        except (TypeError, ValueError):
+            return None
+        return value if 0 <= value <= 3 else None
+
+    @classmethod
+    def _normalize_options(cls, raw_options, correct_index=None) -> list[dict]:
+        if not isinstance(raw_options, list) or len(raw_options) != 4:
             return []
 
         options: list[dict] = []
-        correct_index: int | None = None
+        correct_indices: list[int] = []
+        compact_correct_index = cls._coerce_correct_index(correct_index)
 
-        for raw_option in raw_options[:4]:
+        for index, raw_option in enumerate(raw_options):
             if isinstance(raw_option, dict):
                 content = clean_vietnamese_text(str(
                     raw_option.get("content")
@@ -201,16 +371,23 @@ class QuestionService:
                     or raw_option.get("label")
                     or ""
                 )).strip()
-                is_correct = bool(raw_option.get("is_correct", False))
+                raw_is_correct = raw_option.get("is_correct", False)
+                is_correct = (
+                    raw_is_correct is True
+                    or (
+                        isinstance(raw_is_correct, str)
+                        and raw_is_correct.strip().lower() == "true"
+                    )
+                )
             else:
                 content = clean_vietnamese_text(str(raw_option or "")).strip()
-                is_correct = False
+                is_correct = compact_correct_index == index
 
             if not content:
-                continue
+                return []
 
-            if is_correct and correct_index is None:
-                correct_index = len(options)
+            if is_correct:
+                correct_indices.append(len(options))
             options.append(
                 {
                     "content": content,
@@ -219,12 +396,10 @@ class QuestionService:
                 }
             )
 
-        if len(options) < 2:
+        if len(options) != 4 or len(correct_indices) != 1:
             return []
 
-        if correct_index is None:
-            correct_index = 0
-        options[correct_index]["is_correct"] = True
+        options[correct_indices[0]]["is_correct"] = True
         return options
 
     def _create_option_records(
@@ -275,7 +450,7 @@ class QuestionService:
         return serialized
 
     def _parse_ai_questions(self, response: str) -> list[dict]:
-        data = json.loads(self._strip_code_fences(response))
+        data = json.loads(self._extract_json_candidate(response))
         if isinstance(data, list):
             return [item for item in data if isinstance(item, dict)]
         if isinstance(data, dict):
@@ -283,6 +458,214 @@ class QuestionService:
             if isinstance(questions, list):
                 return [item for item in questions if isinstance(item, dict)]
         return []
+
+    @staticmethod
+    def _build_source_quiz_prompt(source_text: str) -> str:
+        return f"""
+Return only valid JSON. No markdown. Write Vietnamese with accents.
+Use only SOURCE_TEXT. Do not create study-method, note-taking, review, or self-check questions.
+Create up to {QUESTIONS_PER_QUIZ} source-grounded multiple-choice questions.
+Each item must test one concrete fact, definition, role, difference, date, person, or application in SOURCE_TEXT.
+Each source_quote must be copied from SOURCE_TEXT.
+
+Schema:
+{{"questions":[{{"content":"...","options":["...","...","...","..."],"correct_index":0,"explanation":"...","source_quote":"..."}}]}}
+
+Rules:
+- correct_index is 0, 1, 2, or 3.
+- Exactly 4 options per question.
+- If the source is weak, return {{"questions":[]}}.
+
+SOURCE_TEXT:
+{source_text}
+""".strip()
+
+    @classmethod
+    def _source_contains_quote(cls, *, source_text: str, source_quote: str) -> bool:
+        normalized_source = " ".join(
+            clean_vietnamese_text(source_text or "").lower().split()
+        )
+        normalized_quote = " ".join(
+            clean_vietnamese_text(source_quote or "").lower().split()
+        )
+        if len(normalized_quote) < 12:
+            return False
+        return normalized_quote in normalized_source
+
+    def _normalize_ai_question_item(
+        self,
+        item: dict,
+        *,
+        source_text: str,
+    ) -> dict | None:
+        question_content = clean_vietnamese_text(str(item.get("content") or "")).strip()
+        if not question_content:
+            return None
+        if has_vietnamese_mark(source_text) and not has_vietnamese_mark(question_content):
+            return None
+        if self._is_generic_template_content(question_content):
+            return None
+
+        correct_index = None
+        for key in ("correct_index", "answer_index", "correct_option_index"):
+            if key in item:
+                correct_index = item.get(key)
+                break
+
+        normalized_options = self._normalize_options(
+            item.get("options"),
+            correct_index=correct_index,
+        )
+        if len(normalized_options) != 4:
+            return None
+
+        source_quote = clean_vietnamese_text(str(item.get("source_quote") or "")).strip()
+        if not self._source_contains_quote(
+            source_text=source_text,
+            source_quote=source_quote,
+        ):
+            return None
+
+        explanation = clean_vietnamese_text(str(item.get("explanation") or "")).strip()
+        return {
+            "content": question_content,
+            "question_type": "single_choice",
+            "options": normalized_options,
+            "explanation": explanation or None,
+            "source_quote": source_quote,
+        }
+
+    def _generate_question_payloads_from_source(
+        self,
+        *,
+        source_text: str,
+        count: int = QUESTIONS_PER_QUIZ,
+    ) -> list[dict]:
+        source_text = self._limit_source_text(source_text)
+        if not self._has_enough_source_text(source_text):
+            return []
+
+        retry_at = self._rate_limit_retry_at()
+        if retry_at is not None:
+            logger.info(
+                "Skipping quiz question generation while AI provider is rate-limited. retry_at=%s",
+                retry_at.isoformat(),
+            )
+            return []
+
+        try:
+            response = call_llm(
+                self._build_source_quiz_prompt(source_text),
+                temperature=0.1,
+                max_completion_tokens=QUIZ_COMPLETION_TOKENS,
+                response_format={"type": "json_object"},
+            )
+            raw_questions = self._parse_ai_questions(response)
+        except Exception as exc:
+            if self._is_rate_limit_error(exc):
+                self._mark_rate_limit_cooldown(exc)
+                logger.warning(
+                    "AI provider rate limit reached while generating quiz questions. retry_at=%s",
+                    (_QUIZ_RATE_LIMIT_RETRY_AT.isoformat() if _QUIZ_RATE_LIMIT_RETRY_AT else None),
+                )
+                return []
+
+            logger.info(
+                "Failed to generate source-grounded quiz questions. error_type=%s error=%s",
+                type(exc).__name__,
+                exc,
+            )
+            return []
+
+        normalized_questions: list[dict] = []
+        for item in raw_questions:
+            if len(normalized_questions) >= count:
+                break
+            normalized_item = self._normalize_ai_question_item(
+                item,
+                source_text=source_text,
+            )
+            if normalized_item:
+                normalized_questions.append(normalized_item)
+
+        return normalized_questions
+
+    def _create_source_questions(
+        self,
+        *,
+        session: Session,
+        assignment: Assignments,
+        criteria_id: uuid.UUID,
+        source_text: str,
+        curriculum_module_id: uuid.UUID | None = None,
+        generated_by: str = "ai",
+        count: int = QUESTIONS_PER_QUIZ,
+    ) -> list[Questions]:
+        created_questions: list[Questions] = []
+        generated_questions = self._generate_question_payloads_from_source(
+            source_text=source_text,
+            count=count,
+        )
+
+        for generated_question in generated_questions[:count]:
+            explanation = generated_question.get("explanation") or ""
+            source_quote = generated_question.get("source_quote") or ""
+            if source_quote:
+                source_note = f"Nguồn: {source_quote}"
+                explanation = (
+                    f"{explanation}\n{source_note}"
+                    if explanation
+                    else source_note
+                )
+
+            question = self._create_question_record(
+                session=session,
+                assignment=assignment,
+                criteria_id=criteria_id,
+                content=generated_question["content"],
+                question_type="single_choice",
+                explanation=explanation or None,
+                generated_by=generated_by,
+            )
+            if curriculum_module_id is not None:
+                question.curriculum_module_id = curriculum_module_id
+                session.add(question)
+
+            option_records = self._create_option_records(
+                session=session,
+                question=question,
+                raw_options=generated_question.get("options"),
+            )
+            if len(option_records) != 4:
+                session.delete(question)
+                continue
+
+            created_questions.append(question)
+
+        return created_questions
+
+    def _collect_assignment_source_text(
+        self,
+        *,
+        session: Session,
+        assignment: Assignments,
+        fallback_text: str = "",
+    ) -> str:
+        chunks_by_material: list[str] = []
+        materials = list(getattr(assignment.project, "materials", []) or [])
+        for material in materials:
+            chunks = session.exec(
+                select(MaterialChunk)
+                .where(MaterialChunk.material_id == material.id)
+                .order_by(MaterialChunk.chunk_index)
+            ).all()
+            chunks_by_material.extend(chunk.content for chunk in chunks if chunk.content)
+
+        source_text = "\n\n".join(chunks_by_material).strip()
+        if not source_text:
+            source_text = fallback_text
+
+        return self._limit_source_text(source_text)
 
     def get_questions(
         self,
@@ -358,15 +741,20 @@ class QuestionService:
         if not assignment:
             raise HTTPException(status_code=404, detail="Assignment not found")
 
-        self._ensure_assignment_questions(
+        questions = self._ensure_assignment_questions(
             session=session,
             assignment=assignment,
         )
-        questions = self.get_questions(
-            session=session,
-            assignment_id=assignment_id,
-            include_correct=False,
-        )
+        question_ids = [question.id for question in questions]
+        option_rows: list[QuestionOptions] = []
+        if question_ids:
+            option_rows = session.exec(
+                select(QuestionOptions).where(QuestionOptions.question_id.in_(question_ids))
+            ).all()
+
+        options_by_question: dict[uuid.UUID, list[QuestionOptions]] = {}
+        for option in option_rows:
+            options_by_question.setdefault(option.question_id, []).append(option)
 
         return {
             "assignment": {
@@ -376,7 +764,26 @@ class QuestionService:
                 "description": assignment.description,
             },
             "questions": [
-                question for question in questions if question.get("options")
+                {
+                    "id": str(question.id),
+                    "content": question.content,
+                    "question_type": question.question_type,
+                    "explanation": None,
+                    "assignment_id": str(assignment.id),
+                    "curriculum_module_id": (
+                        str(question.curriculum_module_id)
+                        if question.curriculum_module_id
+                        else None
+                    ),
+                    "generated_by": question.generated_by,
+                    "created_at": question.created_at.isoformat(),
+                    "options": self._serialize_options(
+                        options_by_question.get(question.id, []),
+                        include_correct=False,
+                    ),
+                }
+                for question in questions
+                if options_by_question.get(question.id)
             ][:QUESTIONS_PER_QUIZ],
         }
 
@@ -401,34 +808,42 @@ class QuestionService:
 
         criteria = self._get_or_create_lesson_criteria(session=session)
         legacy_unaccented = self._is_legacy_unaccented_question_set(questions)
-        if not questions or legacy_unaccented:
-            self._create_template_questions(
+        generic_template = self._is_generic_template_question_set(questions)
+        valid_existing_questions = self._filter_generic_template_questions(questions)
+        needs_generation = (
+            not valid_existing_questions
+            or legacy_unaccented
+            or generic_template
+            or len(valid_existing_questions) < QUESTIONS_PER_QUIZ
+        )
+        if needs_generation:
+            created_questions = self._create_source_questions(
                 session=session,
                 assignment=assignment,
                 criteria_id=criteria.id,
-                title=assignment.title,
-                description=assignment.description or "",
+                source_text=self._collect_assignment_source_text(
+                    session=session,
+                    assignment=assignment,
+                    fallback_text=assignment.description or assignment.title,
+                ),
                 count=QUESTIONS_PER_QUIZ,
             )
-            session.commit()
-        elif len(questions) < QUESTIONS_PER_QUIZ:
-            self._create_template_questions(
-                session=session,
-                assignment=assignment,
-                criteria_id=criteria.id,
-                title=assignment.title,
-                description=assignment.description or "",
-                start_index=len(questions),
-                count=QUESTIONS_PER_QUIZ - len(questions),
-            )
-            session.commit()
+            if created_questions:
+                session.commit()
+                for question in created_questions:
+                    session.refresh(question)
+                return created_questions[:QUESTIONS_PER_QUIZ]
+            if legacy_unaccented or not valid_existing_questions:
+                return []
 
-        return session.exec(
+        latest_questions = session.exec(
             select(Questions)
             .where(assignment_field == assignment.id)
             .order_by(Questions.created_at.desc())
-            .limit(QUESTIONS_PER_QUIZ)
         ).all()
+        return self._filter_generic_template_questions(latest_questions)[
+            :QUESTIONS_PER_QUIZ
+        ]
 
     def _ensure_module_questions(
         self,
@@ -451,36 +866,41 @@ class QuestionService:
         )
 
         legacy_unaccented = self._is_legacy_unaccented_question_set(questions)
-        if not questions or legacy_unaccented:
-            self._create_template_questions(
+        generic_template = self._is_generic_template_question_set(questions)
+        valid_existing_questions = self._filter_generic_template_questions(questions)
+        needs_generation = (
+            not valid_existing_questions
+            or legacy_unaccented
+            or generic_template
+            or len(valid_existing_questions) < QUESTIONS_PER_QUIZ
+        )
+        if needs_generation:
+            created_questions = self._create_source_questions(
                 session=session,
                 assignment=assignment,
                 criteria_id=criteria.id,
-                title=module.title,
-                description=module.description or "",
+                source_text=self._extract_lesson_source_text(
+                    module.content or module.description or module.title
+                ),
                 curriculum_module_id=module.id,
                 count=QUESTIONS_PER_QUIZ,
             )
-            session.commit()
-        elif len(questions) < QUESTIONS_PER_QUIZ:
-            self._create_template_questions(
-                session=session,
-                assignment=assignment,
-                criteria_id=criteria.id,
-                title=module.title,
-                description=module.description or "",
-                curriculum_module_id=module.id,
-                start_index=len(questions),
-                count=QUESTIONS_PER_QUIZ - len(questions),
-            )
-            session.commit()
+            if created_questions:
+                session.commit()
+                for question in created_questions:
+                    session.refresh(question)
+                return created_questions[:QUESTIONS_PER_QUIZ]
+            if legacy_unaccented or not valid_existing_questions:
+                return []
 
-        return session.exec(
+        latest_questions = session.exec(
             select(Questions)
             .where(Questions.curriculum_module_id == module.id)
             .order_by(Questions.created_at.desc())
-            .limit(QUESTIONS_PER_QUIZ)
         ).all()
+        return self._filter_generic_template_questions(latest_questions)[
+            :QUESTIONS_PER_QUIZ
+        ]
 
     def get_module_quiz(
         self,
@@ -836,107 +1256,19 @@ class QuestionService:
         if not criteria:
             raise HTTPException(status_code=404, detail="Criteria not found")
 
-        materials = list(getattr(assignment.project, "materials", []) or [])
-        created_questions: list[Questions] = []
-
-        for material in materials:
-            if len(created_questions) >= QUESTIONS_PER_QUIZ:
-                break
-            chunks = session.exec(
-                select(MaterialChunk)
-                .where(MaterialChunk.material_id == material.id)
-                .order_by(MaterialChunk.chunk_index)
-            ).all()
-
-            for chunk in chunks:
-                if len(created_questions) >= QUESTIONS_PER_QUIZ:
-                    break
-                try:
-                    teacher_instruction = clean_vietnamese_text(content)
-                    source_content = clean_vietnamese_text(chunk.content)
-                    response = call_llm(
-                        f"""
-Tạo đúng {QUESTIONS_PER_QUIZ} câu hỏi trắc nghiệm bằng tiếng Việt có dấu từ nội dung bên dưới.
-Chỉ trả về JSON hợp lệ theo đúng định dạng này:
-{{
-  "questions": [
-    {{
-      "content": "Nội dung câu hỏi",
-      "question_type": "single_choice",
-      "options": [
-        {{"content": "Đáp án A", "is_correct": false}},
-        {{"content": "Đáp án B", "is_correct": true}},
-        {{"content": "Đáp án C", "is_correct": false}},
-        {{"content": "Đáp án D", "is_correct": false}}
-      ],
-      "explanation": "Giải thích ngắn gọn cho đáp án đúng"
-    }}
-  ]
-}}
-
-Quy tắc bắt buộc:
-- Viết tiếng Việt tự nhiên và có dấu đầy đủ.
-- Tạo đúng {QUESTIONS_PER_QUIZ} câu hỏi nếu nội dung đủ thông tin.
-- Mỗi câu hỏi có đúng 4 lựa chọn.
-- Mỗi câu hỏi có đúng 1 lựa chọn có "is_correct": true.
-- Không tiết lộ đáp án đúng trong nội dung câu hỏi.
-
-Yêu cầu bổ sung của giáo viên:
-{teacher_instruction}
-
-Nội dung nguồn:
-{source_content}
-""",
-                        temperature=0.1,
-                    )
-                    remaining = QUESTIONS_PER_QUIZ - len(created_questions)
-                    for item in self._parse_ai_questions(response)[:remaining]:
-                        question_content = clean_vietnamese_text(
-                            str(item.get("content") or "")
-                        ).strip()
-                        if not question_content or not has_vietnamese_mark(question_content):
-                            continue
-                        question = self._create_question_record(
-                            session=session,
-                            assignment=assignment,
-                            criteria_id=criteria_id,
-                            content=question_content,
-                            question_type=str(item.get("question_type") or "single_choice"),
-                            explanation=clean_vietnamese_text(
-                                str(item.get("explanation") or "")
-                            ).strip() or None,
-                            generated_by=generated_by,
-                        )
-                        option_records = self._create_option_records(
-                            session=session,
-                            question=question,
-                            raw_options=item.get("options"),
-                        )
-                        if not option_records:
-                            session.delete(question)
-                            continue
-                        created_questions.append(question)
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to generate question from material chunk. chunk_id=%s error_type=%s error=%s",
-                        chunk.id,
-                        type(exc).__name__,
-                        exc,
-                    )
-
-        cleaned_manual_content = clean_vietnamese_text(content).strip()
-        if len(created_questions) < QUESTIONS_PER_QUIZ:
-            created_questions.extend(
-                self._create_template_questions(
-                    session=session,
-                    assignment=assignment,
-                    criteria_id=criteria_id,
-                    title=assignment.title,
-                    description=cleaned_manual_content or assignment.description or "",
-                    start_index=len(created_questions),
-                    count=QUESTIONS_PER_QUIZ - len(created_questions),
-                )
-            )
+        source_text = self._collect_assignment_source_text(
+            session=session,
+            assignment=assignment,
+            fallback_text=content,
+        )
+        created_questions = self._create_source_questions(
+            session=session,
+            assignment=assignment,
+            criteria_id=criteria_id,
+            source_text=source_text,
+            generated_by=generated_by,
+            count=QUESTIONS_PER_QUIZ,
+        )
 
         if not created_questions:
             raise HTTPException(

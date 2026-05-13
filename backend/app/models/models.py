@@ -218,7 +218,7 @@ class PricingPlans(BaseModel, table=True):
     max_project: Optional[int] = None
     is_active: bool = Field(default=True)
     is_featured: bool = Field(default=False)
-    display_order: int = Field(default=False)
+    display_order: int = Field(default=0)
     bagde_text: Optional[str] = None
     created_at: datetime = Field(default_factory= datetime.utcnow)
     update_at: Optional[datetime] = None
@@ -330,3 +330,47 @@ class MaterialChunk(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     material: Optional[LearningMaterials] = Relationship()
     curriculum_module: Optional[CurriculumModules] = Relationship()
+
+class PaymentTransactions(BaseModel, table=True):
+    __tablename__ = "payment_transactions"
+
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    user_id: uuid.UUID = Field(foreign_key="users.id")
+    plan_id: uuid.UUID = Field(foreign_key="pricing_plans.id")
+
+    amount: int
+    currency: str
+    payment_provider: str
+    order_id: str = Field(nullable=False, unique=True, index=True, max_length=100)
+    request_id: str = Field(nullable=False, unique=True, index=True, max_length=100)
+    provider_transaction_id: Optional[str] = None
+    pay_url: Optional[str] = Field(default=None, max_length=1024)
+    deeplink: Optional[str] = Field(default=None, max_length=1024)
+    qr_code_url: Optional[str] = Field(default=None, max_length=1024)
+    status: str = Field(default="pending")
+    result_code: Optional[int] = None
+    message: Optional[str] = Field(default=None, max_length=1024)
+    paid_at: Optional[datetime] = None
+    update_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+
+class OrderBase(SQLModel):
+    user_id: uuid.UUID = Field(foreign_key="users.id", nullable=False, index=True)
+    plan_id: uuid.UUID = Field(foreign_key="pricing_plans.id", nullable=False, index=True)
+
+    order_code: str = Field(max_length=100, unique=True, index=True)
+
+    plan_name: str = Field(max_length=255)
+    amount: int
+    currency: str = Field(default="VND", max_length=10)
+
+    payment_method: str = Field(default="momo", max_length=50)
+
+    status: str = Field(default="pending", max_length=30)
+    payment_status: str = Field(default="unpaid", max_length=30)
+
+    paid_at: Optional[datetime] = None
+    expired_at: Optional[datetime] = None
+
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)

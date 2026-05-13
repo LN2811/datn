@@ -1,0 +1,128 @@
+.momo-result {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 18px;
+  color: #172033;
+  background: #f4f7fb;
+}
+
+.momo-result__card {
+  width: min(560px, 100%);
+  padding: 34px;
+  border: 1px solid rgba(23, 32, 51, 0.1);
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(23, 32, 51, 0.12);
+}
+
+.momo-result__icon {
+  width: 68px;
+  height: 68px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #2563eb;
+  background: #dbeafe;
+}
+
+.momo-result__icon--success {
+  color: #047857;
+  background: #d1fae5;
+}
+
+.momo-result__icon--error {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+
+.momo-result h1 {
+  margin: 22px 0 10px;
+  font-size: 2rem;
+  line-height: 1.15;
+}
+
+.momo-result p {
+  margin: 0;
+  color: #59677f;
+  line-height: 1.6;
+}
+
+.momo-result__meta {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px 16px;
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.momo-result__meta span {
+  color: #718096;
+}
+
+.momo-result__meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.momo-result__hint {
+  margin-top: 18px !important;
+  color: #2563eb !important;
+  font-weight: 700;
+}
+
+.momo-result__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.momo-result__button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 0 16px;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.momo-result__button--primary {
+  color: #ffffff;
+  background: #2563eb;
+}
+
+.momo-result__button--secondary {
+  color: #172033;
+  background: #e2e8f0;
+}
+
+.momo-result__spin {
+  animation: momo-result-spin 900ms linear infinite;
+}
+
+@keyframes momo-result-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 520px) {
+  .momo-result__card {
+    padding: 26px 20px;
+  }
+
+  .momo-result__meta {
+    grid-template-columns: 1fr;
+  }
+
+  .momo-result__button {
+    width: 100%;
+  }
+}

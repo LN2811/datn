@@ -266,6 +266,16 @@
 .study-dashboard__primary-link--button {
   min-width: 0;
 }
+.upgrade{
+  text-decoration: none;
+  color: black;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 20px;
+  margin-left: 10px;
+  
+}
 
 .study-dashboard__ghost-link:disabled,
 .study-dashboard__primary-link:disabled {

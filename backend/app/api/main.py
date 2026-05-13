@@ -21,6 +21,7 @@ from app.api.route import(
     ai_code_feedback,
     ai_generated_sources,
     admin_stats,
+    payments,
     login,
     auth,
     authen,
@@ -47,6 +48,7 @@ api_router.include_router(ai_usage_logs.router, prefix="/ai-usage-logs", tags=["
 api_router.include_router(ai_code_feedback.router, prefix="/ai-code-feedback", tags=["ai-code-feedback"])
 api_router.include_router(ai_generated_sources.router, prefix="/ai-generated-sources", tags=["ai-generated-sources"])
 api_router.include_router(admin_stats.router, prefix="/admin", tags=["admin"])
+api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
 api_router.include_router(login.router, prefix="/auth", tags=["auth"])
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(authen.router, prefix="/authen", tags=["authen"])

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "@/api/axios";
 import "./upgrade.css";
+import { X } from 'lucide-react';
+import { Link, useNavigate } from "react-router-dom";
 
 type PricingPlanFromApi = {
   id: string;
@@ -10,6 +12,10 @@ type PricingPlanFromApi = {
   ai_usage_limit?: number | null;
   max_projects?: number | null;
   is_active: boolean;
+};
+
+type CurrentSubscriptionFromApi = {
+  plan_id: string;
 };
 
 type PricingPlanCard = {
@@ -25,7 +31,7 @@ type PricingPlanCard = {
 
 function formatPrice(price: number) {
   if (price <= 0) {
-    return "Usage pricing";
+    return "Free";
   }
 
   return new Intl.NumberFormat("vi-VN", {
@@ -63,24 +69,34 @@ function mapPlanToCard(plan: PricingPlanFromApi): PricingPlanCard {
 }
 
 export default function UpgradePlanPage() {
-  const [activeTab, setActiveTab] = useState<"personal" | "business">("business");
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<PricingPlanCard[]>([]);
+  const [currentPlanId, setCurrentPlanId] = useState<string | null>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     const fetchPlans = async () => {
       try {
         setLoading(true);
         setError("");
+        setSuccess("");
 
-        const response = await api.get<PricingPlanFromApi[]>("/pricing-plans");
+        const [plansResponse, subscriptionResponse] = await Promise.all([
+          api.get<PricingPlanFromApi[]>("/pricing-plans"),
+          api.get<CurrentSubscriptionFromApi | null>(
+            "/pricing-plans/subscriptions/me/current",
+          ),
+        ]);
 
-        const activePlans = response.data
+        const activePlans = plansResponse.data
           .filter((plan) => plan.is_active)
           .map(mapPlanToCard);
 
         setPlans(activePlans);
+        setCurrentPlanId(subscriptionResponse.data?.plan_id ?? null);
       } catch {
         setError("Không thể tải danh sách gói dịch vụ.");
       } finally {
@@ -91,73 +107,83 @@ export default function UpgradePlanPage() {
     fetchPlans();
   }, []);
 
+  const handleSelectPlan = (plan: PricingPlanCard) => {
+    if (selectedPlanId || plan.id === currentPlanId) {
+      return;
+    }
+
+    setSelectedPlanId(plan.id);
+    setError("");
+    setSuccess("");
+    navigate(`/order/${plan.id}`);
+  };
+
   return (
     <div className="upgrade-overlay">
       <div className="upgrade-container">
+        <Link to="/dashboard">
+          <X className="outupgrade" size={30} />
+        </Link>
         <header className="upgrade-header">
           <h1 className="upgrade-title">Nâng cấp gói dịch vụ</h1>
-
-          <div className="upgrade-toggle">
-            <button
-              type="button"
-              className={activeTab === "personal" ? "upgrade-toggle__item active" : "upgrade-toggle__item"}
-              onClick={() => setActiveTab("personal")}
-            >
-              Cá nhân
-            </button>
-
-            <button
-              type="button"
-              className={activeTab === "business" ? "upgrade-toggle__item active" : "upgrade-toggle__item"}
-              onClick={() => setActiveTab("business")}
-            >
-              Doanh nghiệp
-            </button>
-          </div>
         </header>
 
         {loading && <p className="upgrade-status">Đang tải gói dịch vụ...</p>}
         {error && <p className="upgrade-error">{error}</p>}
-
-        {!loading && !error && (
+        {success && <p className="upgrade-success">{success}</p>}
+        {!loading && plans.length > 0 && (
           <section className="upgrade-grid">
-            {plans.map((plan) => (
-              <article
-                key={plan.id}
-                className={
-                  plan.highlighted
-                    ? "pricing-card pricing-card--highlighted"
-                    : "pricing-card"
-                }
-              >
-                <div className="pricing-card__top">
-                  <h2 className="pricing-card__title">{plan.title}</h2>
+            {plans.map((plan) => {
+              const isCurrent = plan.id === currentPlanId;
+              const isSelecting = plan.id === selectedPlanId;
 
-                  {plan.subtitle && (
-                    <p className="pricing-card__subtitle">{plan.subtitle}</p>
-                  )}
+              return (
+                <article
+                  key={plan.id}
+                  className={[
+                    "pricing-card",
+                    plan.highlighted ? "pricing-card--highlighted" : "",
+                    isCurrent ? "pricing-card--current" : "",
+                  ].filter(Boolean).join(" ")}
+                >
+                  <div className="pricing-card__top">
+                    <h2 className="pricing-card__title">{plan.title}</h2>
 
-                  <div className="pricing-card__price">{plan.priceText}</div>
+                    {plan.subtitle && (
+                      <p className="pricing-card__subtitle">{plan.subtitle}</p>
+                    )}
 
-                  <p className="pricing-card__description">
-                    {plan.description}
-                  </p>
+                    <div className="pricing-card__price">{plan.priceText}</div>
 
-                  <button type="button" className="pricing-card__button">
-                    Chọn gói
-                  </button>
-                </div>
+                    <p className="pricing-card__description">
+                      {plan.description}
+                    </p>
 
-                <ul className="pricing-card__features">
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="pricing-card__feature">
-                      <span>✦</span>
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-              </article>
-            ))}
+                    <button
+                      type="button"
+                      className="pricing-card__button"
+                      disabled={isCurrent || Boolean(selectedPlanId)}
+                      onClick={() => handleSelectPlan(plan)}
+                    >
+                      {isCurrent
+                        ? "Gói hiện tại"
+                        : isSelecting
+                          ? "Đang chuyển..."
+                          : "Chọn gói"}
+                    </button>
+                  </div>
+
+                  <ul className="pricing-card__features">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="pricing-card__feature">
+                        <span>✦</span>
+                        <span>{feature}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
+              );
+            })}
           </section>
         )}
       </div>

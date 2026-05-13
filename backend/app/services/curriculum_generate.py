@@ -6,6 +6,7 @@ from sqlmodel import Session, select
 
 from app.core.db import engine
 from app.models.models import (
+    Answers,
     Assignments,
     Criteria,
     CurriculumModules,
@@ -16,6 +17,7 @@ from app.models.models import (
     Questions,
 )
 from app.services.ai_service import (
+    ai_usage_tracking_context,
     build_module_source_description,
     clean_learning_material_text,
     extract_curriculum_outline_from_toc,
@@ -24,10 +26,8 @@ from app.services.ai_service import (
     generate_lesson_content_fallback,
 )
 from app.services.file_parser import extract_text
-from app.services.quiz_templates import (
-    QUESTIONS_PER_QUIZ,
-    build_vietnamese_quiz_questions,
-)
+from app.services.questions import QuestionService
+from app.services.quiz_templates import QUESTIONS_PER_QUIZ
 from app.services.text_cleaner import clean_vietnamese_text, has_vietnamese_mark
 
 logger = logging.getLogger("uvicorn.error")
@@ -57,6 +57,65 @@ class CurriculumGenerationService:
             .where(CurriculumModules.curriculum_id == curriculum_id)
             .order_by(CurriculumModules.order_index, CurriculumModules.created_at)
         ).all()
+
+    def _get_project_curriculum_modules(
+        self,
+        *,
+        session: Session,
+        project_id: uuid.UUID,
+    ) -> list[CurriculumModules]:
+        return session.exec(
+            select(CurriculumModules)
+            .join(Curriculums, CurriculumModules.curriculum_id == Curriculums.id)
+            .where(Curriculums.project_id == project_id)
+            .order_by(Curriculums.created_at, CurriculumModules.order_index)
+        ).all()
+
+    def _delete_questions_for_modules(
+        self,
+        *,
+        session: Session,
+        modules: list[CurriculumModules],
+    ) -> dict:
+        module_ids = [module.id for module in modules if module.id]
+        if not module_ids:
+            return {
+                "deleted_questions_count": 0,
+                "deleted_options_count": 0,
+                "deleted_answers_count": 0,
+            }
+
+        questions = session.exec(
+            select(Questions).where(Questions.curriculum_module_id.in_(module_ids))
+        ).all()
+        question_ids = [question.id for question in questions]
+        if not question_ids:
+            return {
+                "deleted_questions_count": 0,
+                "deleted_options_count": 0,
+                "deleted_answers_count": 0,
+            }
+
+        answers = session.exec(
+            select(Answers).where(Answers.question_id.in_(question_ids))
+        ).all()
+        options = session.exec(
+            select(QuestionOptions).where(QuestionOptions.question_id.in_(question_ids))
+        ).all()
+
+        for answer in answers:
+            session.delete(answer)
+        for option in options:
+            session.delete(option)
+        for question in questions:
+            session.delete(question)
+
+        session.commit()
+        return {
+            "deleted_questions_count": len(questions),
+            "deleted_options_count": len(options),
+            "deleted_answers_count": len(answers),
+        }
 
     def _has_newer_materials(
         self,
@@ -259,9 +318,7 @@ class CurriculumGenerationService:
 
     @staticmethod
     def _build_questions_for_module(module: CurriculumModules) -> list[dict]:
-        title = clean_vietnamese_text(module.title).strip() if module.title else "bài học này"
-        description = clean_vietnamese_text(module.description or "").strip()
-        return build_vietnamese_quiz_questions(title=title, description=description)
+        return []
 
     @staticmethod
     def _create_question_options(
@@ -307,54 +364,68 @@ class CurriculumGenerationService:
             curriculum=curriculum,
         )
         assignment_field = self._question_assignment_field()
-        assignment_field_name = self._question_assignment_field_name()
 
         existing_questions = session.exec(
             select(Questions).where(assignment_field == assignment.id)
         ).all()
         expected_count = max(len(modules), 1) * QUESTIONS_PER_QUIZ
+        question_service = QuestionService()
         legacy_unaccented = (
             bool(existing_questions)
             and all(not has_vietnamese_mark(question.content or "") for question in existing_questions)
         )
-        if len(existing_questions) >= expected_count and not legacy_unaccented:
+        generic_template = question_service._is_generic_template_question_set(existing_questions)
+        if len(existing_questions) >= expected_count and not legacy_unaccented and not generic_template:
             return {
                 "question_assignment_id": str(assignment.id),
                 "questions_count": len(existing_questions),
             }
 
         created_questions: list[Questions] = []
+        valid_existing_count = 0 if legacy_unaccented or generic_template else len(existing_questions)
         for module in modules:
-            for generated_question in self._build_questions_for_module(module):
-                question_payload = {
-                    "project_id": project_id,
-                    "criteria_id": criteria.id,
-                    "curriculum_module_id": module.id,
-                    "content": clean_vietnamese_text(generated_question["content"]),
-                    "question_type": "single_choice",
-                    "explanation": clean_vietnamese_text(
-                        generated_question.get("explanation") or ""
-                    ) or None,
-                    "generated_by": "ai",
-                    assignment_field_name: assignment.id,
-                }
-                question = Questions(**question_payload)
-                session.add(question)
-                session.flush()
-                self._create_question_options(
-                    session=session,
-                    question=question,
-                    options=generated_question.get("options", []),
-                )
-                created_questions.append(question)
+            if not module.content:
+                continue
 
-        session.commit()
-        for question in created_questions:
-            session.refresh(question)
+            module_questions = session.exec(
+                select(Questions)
+                .where(Questions.curriculum_module_id == module.id)
+                .order_by(Questions.created_at.desc())
+            ).all()
+            module_legacy_unaccented = (
+                bool(module_questions)
+                and all(not has_vietnamese_mark(question.content or "") for question in module_questions)
+            )
+            module_generic_template = question_service._is_generic_template_question_set(
+                module_questions
+            )
+            if (
+                len(module_questions) >= QUESTIONS_PER_QUIZ
+                and not module_legacy_unaccented
+                and not module_generic_template
+            ):
+                continue
+
+            created_questions.extend(
+                question_service._create_source_questions(
+                    session=session,
+                    assignment=assignment,
+                    criteria_id=criteria.id,
+                    source_text=question_service._extract_lesson_source_text(module.content),
+                    curriculum_module_id=module.id,
+                    generated_by="ai",
+                    count=QUESTIONS_PER_QUIZ,
+                )
+            )
+
+        if created_questions:
+            session.commit()
+            for question in created_questions:
+                session.refresh(question)
 
         return {
             "question_assignment_id": str(assignment.id),
-            "questions_count": len(created_questions),
+            "questions_count": valid_existing_count + len(created_questions),
         }
 
     def _create_pending_modules(
@@ -611,6 +682,20 @@ class CurriculumGenerationService:
             session=session,
             project_id=project_id,
         )
+        deleted_question_meta = {
+            "deleted_questions_count": 0,
+            "deleted_options_count": 0,
+            "deleted_answers_count": 0,
+        }
+        if force_regenerate and latest_curriculum:
+            deleted_question_meta = self._delete_questions_for_modules(
+                session=session,
+                modules=self._get_project_curriculum_modules(
+                    session=session,
+                    project_id=project_id,
+                ),
+            )
+
         if (
             latest_curriculum
             and not force_regenerate
@@ -649,6 +734,7 @@ class CurriculumGenerationService:
                     "curriculum_id": str(latest_curriculum.id),
                     "total_module": latest_curriculum.total_module,
                     "ready_module": latest_curriculum.ready_module,
+                    **deleted_question_meta,
                     **question_meta,
                     "modules": preview_modules,
                 }
@@ -744,6 +830,7 @@ class CurriculumGenerationService:
             "curriculum_id": str(curriculum.id),
             "total_module": curriculum.total_module,
             "ready_module": curriculum.ready_module,
+            **deleted_question_meta,
             **question_meta,
             "modules": preview_modules,
         }
@@ -849,10 +936,23 @@ class CurriculumGenerationService:
         *,
         module_id: uuid.UUID,
         limit: int = 2,
+        user_id: uuid.UUID | None = None,
     ) -> None:
         with Session(engine) as session:
-            self.prefetch_next_modules(
-                session=session,
-                module_id=module_id,
-                limit=limit,
+            module = session.get(CurriculumModules, module_id)
+            curriculum = (
+                session.get(Curriculums, module.curriculum_id)
+                if module is not None
+                else None
             )
+            with ai_usage_tracking_context(
+                session=session,
+                user_id=user_id,
+                project_id=curriculum.project_id if curriculum else None,
+                action_type="generate_lesson",
+            ):
+                self.prefetch_next_modules(
+                    session=session,
+                    module_id=module_id,
+                    limit=limit,
+                )

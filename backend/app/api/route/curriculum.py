@@ -9,6 +9,7 @@ from app.models.models import Users
 from app.models.schemas.Curriculum_Module.curriculum_module_schemas import (
     CurriculumModulePublic,
 )
+from app.services.ai_service import ai_usage_tracking_context
 from app.services.curriculum import CurriculumService
 
 router = APIRouter()
@@ -110,11 +111,17 @@ def get_lessons_by_project(
 def generate_lessons_for_project(
     project_id: uuid.UUID,
     session: SessionDep,
-    _: Users = Depends(Authen.get_current_user),
+    current_user: Users = Depends(Authen.get_current_user),
     force_regenerate: bool = False,
 ):
-    return CurriculumService().generate_lessons_for_project(
+    with ai_usage_tracking_context(
         session=session,
+        user_id=current_user.id,
         project_id=project_id,
-        force_regenerate=force_regenerate,
-    )
+        action_type="generate_curriculum",
+    ):
+        return CurriculumService().generate_lessons_for_project(
+            session=session,
+            project_id=project_id,
+            force_regenerate=force_regenerate,
+        )

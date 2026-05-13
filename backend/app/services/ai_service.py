@@ -1,7 +1,10 @@
 import json
 import logging
 import re
+from contextlib import contextmanager
+from contextvars import ContextVar
 from json import JSONDecodeError
+from typing import Any, Iterator
 import unicodedata
 from groq import Groq
 
@@ -108,10 +111,98 @@ STOPWORDS = {
     "description",
 }
 logger = logging.getLogger("uvicorn.error")
+_AI_USAGE_CONTEXT: ContextVar[dict[str, Any] | None] = ContextVar(
+    "ai_usage_context",
+    default=None,
+)
 
 
 class AIResponseFormatError(RuntimeError):
     pass
+
+
+@contextmanager
+def ai_usage_tracking_context(
+    *,
+    session: Any,
+    user_id: Any,
+    project_id: Any = None,
+    action_type: str = "generate_ai",
+) -> Iterator[None]:
+    if session is None or user_id is None:
+        yield
+        return
+
+    token = _AI_USAGE_CONTEXT.set(
+        {
+            "session": session,
+            "user_id": user_id,
+            "project_id": project_id,
+            "action_type": action_type,
+        }
+    )
+    try:
+        yield
+    finally:
+        _AI_USAGE_CONTEXT.reset(token)
+
+
+def _extract_response_total_tokens(response: Any) -> int | None:
+    usage = getattr(response, "usage", None)
+    if usage is None:
+        return None
+
+    total_tokens = getattr(usage, "total_tokens", None)
+    if total_tokens is None and isinstance(usage, dict):
+        total_tokens = usage.get("total_tokens")
+
+    if total_tokens is None:
+        return None
+
+    try:
+        return max(int(total_tokens), 0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _estimate_llm_tokens(*parts: str) -> int:
+    text = "\n".join(part for part in parts if part)
+    return max(1, len(text) // 4)
+
+
+def _log_llm_usage(
+    *,
+    response: Any,
+    prompt: str,
+    system_prompt: str,
+    content: str,
+) -> None:
+    context = _AI_USAGE_CONTEXT.get()
+    if not context:
+        return
+
+    tokens_used = _extract_response_total_tokens(response)
+    if tokens_used is None:
+        tokens_used = _estimate_llm_tokens(prompt, system_prompt, content)
+
+    try:
+        from app.services.ai_Usage_Log import AIUsageService
+
+        AIUsageService().log_usage(
+            session=context["session"],
+            user_id=context["user_id"],
+            project_id=context.get("project_id"),
+            action_type=context.get("action_type") or "generate_ai",
+            model_name=DEFAULT_MODEL_NAME,
+            tokens_used=tokens_used,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to log LLM token usage. action_type=%s error_type=%s error=%s",
+            context.get("action_type"),
+            type(exc).__name__,
+            exc,
+        )
 
 def _legacy_clean_text(text: str) -> str:
     text = clean_learning_material_text(text)
@@ -511,13 +602,6 @@ def extract_curriculum_outline_from_toc(text: str) -> dict | None:
     module_items: list[dict] = []
     for entry in modules:
         description = f"Muc luc {entry['number']}: {entry['title']}"
-        source_description = build_module_source_description(
-            text=cleaned_text,
-            module_title=entry["title"],
-            module_description=description,
-        )
-        if source_description and source_description != description:
-            description = f"{description}\n\n{source_description}"
         module_items.append(
             {
                 "title": entry["title"],
@@ -616,6 +700,286 @@ def format_readable_paragraphs(
         paragraphs.append(" ".join(current))
 
     return "\n\n".join(paragraphs)
+
+
+VIETNAMESE_OCR_SPACING_REPLACEMENTS = (
+    (r"\bcon\s+ngư\s+ời\b", "con người"),
+    (r"\bngư\s+ời\b", "người"),
+    (r"\bđư\s+ợc\b", "được"),
+    (r"\bdư\s+ới\b", "dưới"),
+    (r"\bhư\s+ởng\b", "hưởng"),
+    (r"\blư\s+ờng\b", "lường"),
+    (r"\btrư\s+ờng\b", "trường"),
+    (r"\bđi\s+ểm\b", "điểm"),
+    (r"\btư\s+ởng\b", "tưởng"),
+    (r"\by\s+ếu\b", "yếu"),
+    (r"\bđi\s+ều\b", "điều"),
+    (r"\bhư\s+ớng\b", "hướng"),
+)
+
+PLAIN_LEARNING_HEADING_STARTERS = (
+    "Những tiến bộ",
+    "Hạn chế",
+    "Ảnh hưởng",
+    "Kết luận",
+    "Vai trò",
+    "Ứng dụng",
+    "Đặc điểm",
+    "Mục tiêu",
+    "Lưu ý",
+    "Ví dụ",
+)
+COLON_LABEL_LEARNING_HEADINGS = (
+    "Kết luận",
+    "Lưu ý",
+    "Ví dụ",
+)
+LEARNING_HEADING_CONTINUATION_ENDINGS = (
+    "cua",
+    "ve",
+    "voi",
+    "va",
+    "hoac",
+    "cho",
+    "den",
+    "tu",
+    "theo",
+    "trong",
+    "ngoai",
+    "nghien cuu",
+)
+
+NUMBERED_LEARNING_HEADING_RE = re.compile(
+    r"(?<![\w])(?P<marker>\d+(?:\.\d+){1,5}\.\s+)"
+)
+LETTER_LEARNING_HEADING_RE = re.compile(
+    r"(?<![\w])(?P<marker>[a-zđ]\.\s+(?=[A-ZÀ-ỸĐ]))"
+)
+UPPERCASE_BODY_START_RE = re.compile(r"\s+(?=[A-ZÀ-ỸĐ])")
+BODY_VERB_CUE_AT_START_RE = re.compile(
+    r"^[A-ZÀ-ỸĐ][^.!?;\n]{0,90}?"
+    r"(?:\s|,\s)"
+    r"(?:là|được|đã|có|xem|bao gồm|nghiên cứu|cho thấy|cần|phải|"
+    r"giúp|đóng|ảnh hưởng|thể hiện|tạo|áp dụng)\b"
+)
+
+
+def _replace_ocr_spacing_with_case(match: re.Match[str], replacement: str) -> str:
+    value = match.group(0)
+    if value[:1].isupper():
+        return replacement[:1].upper() + replacement[1:]
+    return replacement
+
+
+def _fix_common_vietnamese_ocr_spacing(text: str) -> str:
+    fixed = text
+    for pattern, replacement in VIETNAMESE_OCR_SPACING_REPLACEMENTS:
+        fixed = re.sub(
+            pattern,
+            lambda match, repl=replacement: _replace_ocr_spacing_with_case(
+                match,
+                repl,
+            ),
+            fixed,
+            flags=re.IGNORECASE,
+        )
+    return fixed
+
+
+def _heading_candidate_needs_more_words(heading_candidate: str) -> bool:
+    folded_candidate = _compact_key(heading_candidate)
+    if any(
+        folded_candidate.endswith(ending)
+        for ending in LEARNING_HEADING_CONTINUATION_ENDINGS
+    ):
+        return True
+
+    words = folded_candidate.split()
+    if "cua" in words:
+        last_cua_index = len(words) - 1 - words[::-1].index("cua")
+        if len(words) - last_cua_index - 1 < 2:
+            return True
+
+    return False
+
+
+def _body_start_repeats_heading_phrase(
+    *,
+    heading_candidate: str,
+    body_candidate: str,
+) -> bool:
+    heading_key = _compact_key(heading_candidate)
+    body_words = _compact_key(body_candidate).split()
+    for size in (3, 2):
+        if len(body_words) >= size:
+            phrase = " ".join(body_words[:size])
+            if phrase and phrase in heading_key:
+                return True
+    return False
+
+
+def _insert_learning_heading_boundaries(text: str) -> str:
+    normalized = text
+    normalized = re.sub(r"(?m)^\s*#{1,6}\s*", "", normalized)
+    normalized = NUMBERED_LEARNING_HEADING_RE.sub(
+        lambda match: (
+            match.group("marker")
+            if match.start() == 0 or normalized[max(0, match.start() - 2) : match.start()].endswith("\n\n")
+            else f"\n\n{match.group('marker')}"
+        ),
+        normalized,
+    )
+    normalized = LETTER_LEARNING_HEADING_RE.sub(
+        lambda match: (
+            match.group("marker")
+            if match.start() == 0 or normalized[max(0, match.start() - 2) : match.start()].endswith("\n\n")
+            else f"\n\n{match.group('marker')}"
+        ),
+        normalized,
+    )
+    starter_pattern = "|".join(re.escape(starter) for starter in PLAIN_LEARNING_HEADING_STARTERS)
+    normalized = re.sub(
+        rf"(?<!^)(?<!\n)\s+(?=({starter_pattern})\b)",
+        "\n\n",
+        normalized,
+    )
+    return normalized
+
+
+def _find_learning_body_start(text: str) -> int | None:
+    for match in UPPERCASE_BODY_START_RE.finditer(text):
+        body_start = match.end()
+        body_candidate = text[body_start:].strip()
+        if not BODY_VERB_CUE_AT_START_RE.match(body_candidate):
+            continue
+
+        heading_candidate = text[: match.start()].strip()
+        if len(heading_candidate) < 10:
+            continue
+        if len(heading_candidate.split()) < 2:
+            continue
+        if _heading_candidate_needs_more_words(
+            heading_candidate,
+        ) and not _body_start_repeats_heading_phrase(
+            heading_candidate=heading_candidate,
+            body_candidate=body_candidate,
+        ):
+            continue
+        return body_start
+    return None
+
+
+def _split_learning_heading_and_body(block: str) -> list[tuple[str, str]]:
+    block = re.sub(r"\s+", " ", block).strip()
+    if not block:
+        return []
+
+    numbered_match = re.match(r"^(\d+(?:\.\d+){1,5}\.\s+)(.+)$", block)
+    letter_match = re.match(r"^([a-zđ]\.\s+)(.+)$", block)
+    is_marked_heading = bool(numbered_match or letter_match)
+
+    if is_marked_heading:
+        marker, rest = (numbered_match or letter_match).groups()
+        split_at = _find_learning_body_start(rest)
+        if split_at is None:
+            return [("heading", f"{marker}{rest}".strip())]
+        return [
+            ("heading", f"{marker}{rest[:split_at].strip()}".strip()),
+            ("body", rest[split_at:].strip()),
+        ]
+
+    label_match = re.match(r"^(.{2,90}:)\s+(.+)$", block)
+    if label_match and any(
+        label_match.group(1).startswith(starter)
+        for starter in COLON_LABEL_LEARNING_HEADINGS
+    ):
+        return [
+            ("heading", label_match.group(1).strip()),
+            ("body", label_match.group(2).strip()),
+        ]
+
+    if block.endswith(":"):
+        return [("heading", block)]
+
+    if any(block.startswith(starter) for starter in PLAIN_LEARNING_HEADING_STARTERS):
+        split_at = _find_learning_body_start(block)
+        if split_at is None:
+            return [("heading", block)]
+        return [
+            ("heading", block[:split_at].strip()),
+            ("body", block[split_at:].strip()),
+        ]
+
+    return [("body", block)]
+
+
+def _split_learning_sentences(text: str) -> list[str]:
+    normalized = re.sub(r"\s+", " ", text).strip()
+    if not normalized:
+        return []
+
+    return [
+        sentence.strip()
+        for sentence in re.split(r"(?<=[.!?。！？])\s+(?=[A-ZÀ-ỸĐ0-9])", normalized)
+        if sentence.strip()
+    ]
+
+
+def _format_learning_body(text: str, *, max_sentences_per_paragraph: int = 3) -> list[str]:
+    sentences = _split_learning_sentences(text)
+    if not sentences:
+        return []
+
+    if len(sentences) <= max_sentences_per_paragraph:
+        return [" ".join(sentences)]
+
+    paragraphs: list[str] = []
+    current: list[str] = []
+    for sentence in sentences:
+        current.append(sentence)
+        if len(current) >= max_sentences_per_paragraph:
+            paragraphs.append(" ".join(current))
+            current = []
+
+    if current:
+        paragraphs.append(" ".join(current))
+
+    return paragraphs
+
+
+def format_learning_content_structure(text: str) -> str:
+    if not text:
+        return ""
+
+    normalized = unicodedata.normalize("NFC", text)
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = _fix_common_vietnamese_ocr_spacing(normalized)
+    normalized = re.sub(r"[ \t]+", " ", normalized)
+    normalized = re.sub(r"\s+([,.;:!?])", r"\1", normalized)
+    normalized = re.sub(r"([([{])\s+", r"\1", normalized)
+    normalized = _insert_learning_heading_boundaries(normalized)
+    normalized = re.sub(r"\n{3,}", "\n\n", normalized).strip()
+
+    if not normalized:
+        return ""
+
+    output_blocks: list[str] = []
+    raw_blocks = [
+        block.strip()
+        for block in re.split(r"\n\s*\n+|\n+", normalized)
+        if block.strip()
+    ]
+
+    for raw_block in raw_blocks:
+        for kind, value in _split_learning_heading_and_body(raw_block):
+            if not value:
+                continue
+            if kind == "heading":
+                output_blocks.append(value)
+                continue
+            output_blocks.extend(_format_learning_body(value))
+
+    return "\n\n".join(output_blocks).strip()
 
 
 def _is_useful_passage(passage: str) -> bool:
@@ -1080,6 +1444,7 @@ def call_llm(
     system_prompt: str = DEFAULT_SYSTEM_PROMPT,
     temperature: float = 0.2,
     max_completion_tokens: int | None = None,
+    response_format: dict[str, str] | None = None,
 ) -> str:
     client = _get_client()
     request_kwargs = {
@@ -1098,11 +1463,20 @@ def call_llm(
     }
     if max_completion_tokens is not None:
         request_kwargs["max_completion_tokens"] = max_completion_tokens
+    if response_format is not None:
+        request_kwargs["response_format"] = response_format
 
     response = client.chat.completions.create(
         **request_kwargs,
     )
-    return response.choices[0].message.content or "{}"
+    content = response.choices[0].message.content or "{}"
+    _log_llm_usage(
+        response=response,
+        prompt=prompt,
+        system_prompt=system_prompt,
+        content=content,
+    )
+    return content
 
 
 def _call_json(
@@ -1489,25 +1863,12 @@ def generate_lesson_content_from_source(
         indices=list(range(len(passages))),
         max_chars=LESSON_CONTEXT_CHARS,
     )
-    source_content = format_readable_paragraphs(
-        source_content,
-        max_sentences_per_paragraph=3,
-    )
-    overview_block = overview.strip() if overview and overview.strip() else "Tao tu muc luc va noi dung tai lieu goc."
+    source_content = format_learning_content_structure(source_content)
+    overview_block = overview.strip() if overview and overview.strip() else "Tạo từ mục lục và nội dung tài liệu gốc."
 
-    return f"""# {module_title}
+    return f"""{module_title}
 
-## Boi canh
-- Curriculum: {curriculum_title}
-- Tong quan: {overview_block}
-
-## Noi dung tu tai lieu
 {source_content}
-
-## Cau hoi on tap
-- Cac y chinh trong phan "{module_title}" la gi?
-- Phan nay co nhung khai niem, quy trinh, hoac luu y nao can ghi nho?
-- Neu ap dung noi dung nay vao bai tap/thuc te, ban se bat dau tu dau?
 """.strip()
 
 
@@ -1550,36 +1911,20 @@ def generate_lesson_content_fallback(
             cleaned_text,
             max_chars=LESSON_CONTEXT_CHARS,
         )
-        source_content = format_readable_paragraphs(
-            source_content,
-            max_sentences_per_paragraph=3,
-        )
+        source_content = format_learning_content_structure(source_content)
         if not source_content:
             source_content = (
-                "Khong tim thay noi dung sach, co gia tri hoc tap cho bai hoc nay "
-                "trong tai lieu da tai len."
+                "Không tìm thấy nội dung sạch, có giá trị học tập cho bài học này "
+                "trong tài liệu đã tải lên."
             )
 
     overview_block = (
         overview.strip()
         if overview and overview.strip()
-        else "Tao tu noi dung tai lieu goc sau khi lam sach du lieu."
+        else "Tạo từ nội dung tài liệu gốc sau khi làm sạch dữ liệu."
     )
 
-    return f"""# {module_title}
-
-## Boi canh
-- Curriculum: {curriculum_title}
-- Tong quan: {overview_block}
-
-## Noi dung tu tai lieu
-{source_content}
-
-## Cau hoi on tap
-- Cac y chinh trong phan "{module_title}" la gi?
-- Phan nay co nhung khai niem, quy trinh, hoac luu y nao can ghi nho?
-- Neu ap dung noi dung nay vao bai tap/thuc te, ban se bat dau tu dau?
-""".strip()
+    return source_content.strip()
 
 
 def call_lln(text: str) -> dict:

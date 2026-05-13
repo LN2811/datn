@@ -9,7 +9,7 @@
 }
 
 .upgrade-container {
-  width: min(1180px, 100%);
+  width: min(1380px, 100%);
   margin: 0 auto;
 }
 
@@ -29,6 +29,7 @@
   line-height: 1.1;
   letter-spacing: -0.04em;
   text-align: center;
+  margin-left: 200px;
 }
 
 .upgrade-toggle {
@@ -69,7 +70,8 @@
 }
 
 .upgrade-status,
-.upgrade-error {
+.upgrade-error,
+.upgrade-success {
   width: min(560px, 100%);
   margin: 28px auto 0;
   padding: 16px 18px;
@@ -90,15 +92,24 @@
   border: 1px solid rgba(252, 165, 165, 0.2);
 }
 
+.upgrade-success {
+  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(134, 239, 172, 0.2);
+}
+
 .upgrade-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 24px;
+  display: flex;
+  justify-content: center;
   align-items: stretch;
+  gap: 24px;
+  flex-wrap: wrap;
 }
 
 .pricing-card {
-  min-height: 760px;
+  min-height: 550px;
+  width: 100%;
+  max-width: 377px;
   padding: 30px 28px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 28px;
@@ -108,7 +119,6 @@
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.24);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
   gap: 28px;
 }
 
@@ -120,6 +130,10 @@
   box-shadow:
     0 30px 90px rgba(88, 80, 236, 0.22),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.pricing-card--current {
+  border-color: rgba(134, 239, 172, 0.48);
 }
 
 .pricing-card__top {
@@ -190,6 +204,12 @@
   background: #f1f5f9;
 }
 
+.pricing-card__button:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+  transform: none;
+}
+
 .pricing-card--highlighted .pricing-card__button {
   color: #ffffff;
   background: linear-gradient(135deg, #7c5cff, #5f47d6);
@@ -226,6 +246,19 @@
   color: #d8b4fe;
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.outupgrade{
+  float: right;
+  cursor: pointer;
+  margin-left: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 3px;
+  color: #C0C0C0;
+}
+.outupgrade:hover {
+  color: #ffffff;
 }
 
 .pricing-card:not(.pricing-card--highlighted) .pricing-card__feature span:first-child {

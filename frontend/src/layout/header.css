@@ -49,6 +49,26 @@
     transform 160ms ease;
 }
 
+.site-header__link--account {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.site-header__logout {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+
+.site-header__logout:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  transform: none;
+}
+
 .site-header__link:hover,
 .site-header__link:focus-visible {
   color: #104765;

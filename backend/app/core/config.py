@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     POPPLER_PATH: str | None = None
     OCR_LANGS: str = "vie+eng"
     OCR_PDF_DPI: int = 200
+    MOMO_PARTNER_CODE: str | None = None
+    MOMO_ACCESS_KEY: str | None = None
+    MOMO_SECRET_KEY: str | None = None
+    MOMO_CREATE_ENDPOINT: str = "https://test-payment.momo.vn/v2/gateway/api/create"
+    MOMO_REDIRECT_URL: str = "http://localhost:5173/payment/momo/result"
+    MOMO_IPN_URL: str | None = None
+    BACKEND_PUBLIC_URL: str | None = None
 
     @computed_field  # type: ignore[prop-decorator]
     @property

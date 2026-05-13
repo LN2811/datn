@@ -9,6 +9,7 @@ from app.models.models import Users
 from app.models.schemas.Curriculum_Module.curriculum_module_schemas import (
     CurriculumModulePublic,
 )
+from app.services.ai_service import ai_usage_tracking_context
 from app.services.curriculum_Module import CurriculumModuleService
 from app.services.curriculum_generate import CurriculumGenerationService
 
@@ -66,17 +67,23 @@ def ensure_module_ready(
     module_id: uuid.UUID,
     background_tasks: BackgroundTasks,
     session: SessionDep,
-    _: Users = Depends(Authen.get_current_user),
+    current_user: Users = Depends(Authen.get_current_user),
 ):
     service = CurriculumGenerationService()
-    module = service.ensure_module_ready(
+    with ai_usage_tracking_context(
         session=session,
-        module_id=module_id,
-    )
+        user_id=current_user.id,
+        action_type="generate_lesson",
+    ):
+        module = service.ensure_module_ready(
+            session=session,
+            module_id=module_id,
+        )
     background_tasks.add_task(
         service.prefetch_next_modules_background,
         module_id=module_id,
         limit=2,
+        user_id=current_user.id,
     )
     return module
 
@@ -85,12 +92,13 @@ def ensure_module_ready(
 def prefetch_next_modules(
     module_id: uuid.UUID,
     background_tasks: BackgroundTasks,
-    _: Users = Depends(Authen.get_current_user),
+    current_user: Users = Depends(Authen.get_current_user),
 ) -> dict:
     service = CurriculumGenerationService()
     background_tasks.add_task(
         service.prefetch_next_modules_background,
         module_id=module_id,
         limit=2,
+        user_id=current_user.id,
     )
     return {"message": "Prefetch scheduled"}
