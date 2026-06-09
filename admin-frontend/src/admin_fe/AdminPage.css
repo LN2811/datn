@@ -304,6 +304,10 @@
   min-width: 880px;
 }
 
+.admin-page__table--payments {
+  min-width: 980px;
+}
+
 .admin-page__table th,
 .admin-page__table td {
   padding: 13px 14px;
@@ -323,6 +327,10 @@
 
 .admin-page__table tr:last-child td {
   border-bottom: 0;
+}
+
+.admin-page__row--selected td {
+  background: rgba(36, 104, 216, 0.06);
 }
 
 .admin-page__user-cell {
@@ -375,6 +383,28 @@
 
 .admin-page__icon-button--danger {
   color: var(--admin-red);
+}
+
+.admin-page__edit-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  color: var(--admin-ink);
+  background: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-page__edit-button:hover:not(:disabled) {
+  background: rgba(36, 104, 216, 0.08);
 }
 
 .admin-page__pill {
@@ -583,6 +613,26 @@
 .admin-page__plan-summary strong {
   color: var(--admin-ink);
   font-size: 1.3rem;
+}
+
+.admin-page__edit-state {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid rgba(36, 104, 216, 0.16);
+  border-radius: 8px;
+  color: var(--admin-blue);
+  background: rgba(36, 104, 216, 0.07);
+  font-size: 0.88rem;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+.admin-page__edit-state svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
 }
 
 .admin-page__toggle-row {

@@ -157,6 +157,16 @@
 }
 
 .upload-modal {
+  --dashboard-bg: #f3f7fb;
+  --dashboard-surface: rgba(255, 255, 255, 0.84);
+  --dashboard-surface-strong: rgba(255, 255, 255, 0.94);
+  --dashboard-border: rgba(16, 44, 69, 0.1);
+  --dashboard-text: #17314c;
+  --dashboard-muted: #5d7488;
+  --dashboard-ink: #113452;
+  --dashboard-blue: #2563eb;
+  --dashboard-teal: #0f8d8f;
+  --dashboard-red: #c94f3d;
   position: fixed;
   inset: 0;
   z-index: 1200;
@@ -321,8 +331,12 @@
 
 .upload-modal__button--primary {
   color: #ffffff;
-  background: var(--dashboard-blue);
+  background: var(--dashboard-blue, #2563eb);
   opacity: 1;
+}
+
+.upload-modal__button--primary:hover:not(:disabled) {
+  background: #1d4ed8;
 }
 
 .project-lesson__header {
@@ -391,6 +405,19 @@
 
 .project-lesson__link:hover {
   transform: translateY(-1px);
+}
+
+.project-lesson__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.project-lesson__link--github {
+  color: #0f5c2f;
+  border-color: rgba(65, 181, 99, 0.26);
+  background: rgba(65, 181, 99, 0.12);
 }
 
 @media (max-width: 640px) {

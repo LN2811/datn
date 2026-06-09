@@ -72,6 +72,16 @@ def get_feedback_by_submission(
     )
 
 
+@router.get("/admin/stats")
+def admin_feedback_stats(
+    session: SessionDep,
+    current_user: Users = Depends(Authen.get_current_user),
+):
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Admin privileges required")
+    return AICodeFeedbackService().admin_stats(session=session)
+
+
 @router.patch("/{feedback_id}")
 def update_feedback(
     feedback_id: uuid.UUID,
@@ -103,13 +113,3 @@ def delete_feedback(
         session=session,
         feedback_id=feedback_id,
     )
-
-
-@router.get("/admin/stats")
-def admin_feedback_stats(
-    session: SessionDep,
-    current_user: Users = Depends(Authen.get_current_user),
-):
-    if not current_user.is_superuser:
-        raise HTTPException(status_code=403, detail="Admin privileges required")
-    return AICodeFeedbackService().admin_stats(session=session)

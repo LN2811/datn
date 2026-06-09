@@ -532,6 +532,279 @@
   background: rgba(243, 174, 64, 0.12);
   line-height: 1.6;
 }
+
+.code-review-empty{
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 42px 20px;
+  border: 1px dashed rgba(17, 52, 82, 0.18);
+  border-radius: 24px;
+  color: var(--dashboard-muted);
+  background: rgba(17, 52, 82, 0.04);
+  text-align: center;
+}
+
+.code-review-empty strong{
+  color: var(--dashboard-ink);
+  font-size: 1.05rem;
+}
+
+.code-review-feedback{
+  display: grid;
+  gap: 18px;
+}
+
+.code-review-feedback__head{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.12), rgba(15, 141, 143, 0.12));
+}
+
+.code-review-feedback__head div{
+  display: grid;
+  gap: 4px;
+}
+
+.code-review-feedback__head span{
+  color: var(--dashboard-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.code-review-feedback__head strong{
+  color: var(--dashboard-ink);
+  font-size: clamp(1.8rem, 2.4vw, 2.6rem);
+  line-height: 1;
+}
+
+.code-review-feedback__grid{
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.code-review-feedback__block{
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.code-review-feedback__block--wide{
+  grid-column: 1 / -1;
+}
+
+.code-review-feedback__block h3{
+  margin: 0;
+  color: var(--dashboard-ink);
+  font-size: 1rem;
+}
+
+.code-review-feedback__block p{
+  margin: 0;
+  color: var(--dashboard-muted);
+  line-height: 1.7;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.code-review-history{
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.code-review-history__item{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--dashboard-border);
+  border-radius: 18px;
+  color: var(--dashboard-ink);
+  background: rgba(255, 255, 255, 0.68);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+
+.code-review-history__item:hover,
+.code-review-history__item--active{
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.26);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.code-review-history__item span{
+  color: var(--dashboard-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.code-review-history__item strong{
+  justify-self: end;
+}
+
+.code-review-history__item small{
+  color: var(--dashboard-muted);
+}
+
+.github-modal{
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 52, 82, 0.36);
+  backdrop-filter: blur(8px);
+}
+
+.github-modal__content{
+  width: min(560px, 100%);
+  border: 1px solid var(--dashboard-border, rgba(16, 44, 69, 0.1));
+  border-radius: 28px;
+  background: rgba(247, 251, 255, 0.96);
+  box-shadow: 0 28px 72px rgba(17, 52, 82, 0.22);
+}
+
+.github-modal__header,
+.github-modal__footer{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px;
+}
+
+.github-modal__header{
+  border-bottom: 1px solid rgba(16, 44, 69, 0.08);
+}
+
+.github-modal__header h2{
+  margin: 4px 0 0;
+  color: var(--dashboard-ink, #113452);
+  font-size: 1.35rem;
+}
+
+.github-modal__eyebrow{
+  color: var(--dashboard-muted, #5d7488);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.github-modal__close{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(16, 44, 69, 0.1);
+  border-radius: 999px;
+  color: var(--dashboard-ink, #113452);
+  background: rgba(255, 255, 255, 0.78);
+  cursor: pointer;
+}
+
+.github-modal__close:disabled{
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.github-modal__body{
+  display: grid;
+  gap: 16px;
+  padding: 22px;
+}
+
+.github-modal__field{
+  display: grid;
+  gap: 8px;
+  color: var(--dashboard-ink, #113452);
+  font-weight: 700;
+}
+
+.github-modal__field input{
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border: 1px solid rgba(16, 44, 69, 0.14);
+  border-radius: 16px;
+  color: var(--dashboard-ink, #113452);
+  background: rgba(255, 255, 255, 0.82);
+  font: inherit;
+  outline: none;
+}
+
+.github-modal__field input:focus{
+  border-color: rgba(37, 99, 235, 0.42);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+}
+
+.github-modal__error{
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  color: var(--dashboard-red, #c94f3d);
+  background: rgba(201, 79, 61, 0.1);
+}
+
+.github-modal__footer{
+  justify-content: flex-end;
+  border-top: 1px solid rgba(16, 44, 69, 0.08);
+}
+
+.github-modal__submit{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 148px;
+  padding: 11px 16px;
+  border: 0;
+  border-radius: 999px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #2563eb 0%, #0f8d8f 100%);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 120ms ease, opacity 120ms ease;
+}
+
+.github-modal__submit:hover:not(:disabled){
+  transform: translateY(-1px);
+}
+
+.github-modal__submit:disabled{
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.github-modal__spinner{
+  animation: github-modal-spin 900ms linear infinite;
+}
+
+@keyframes github-modal-spin{
+  to{
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 960px) {
   .lession-content,
   .lession-content--projects{
@@ -550,6 +823,10 @@
 
   .lession-project__stats{
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .code-review-feedback__grid{
+    grid-template-columns: 1fr;
   }
 }
 
@@ -582,5 +859,15 @@
   .lession-project__link,
   .lession-project__delete{
     width: 100%;
+  }
+
+  .github-modal{
+    padding: 14px;
+  }
+
+  .github-modal__header,
+  .github-modal__body,
+  .github-modal__footer{
+    padding: 18px;
   }
 }

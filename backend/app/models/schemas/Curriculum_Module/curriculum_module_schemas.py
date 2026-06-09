@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from sqlmodel import SQLModel, Field
 
 
@@ -13,6 +13,11 @@ class CurriculumModuleBase(SQLModel):
     )
     title: str = Field(nullable=False)
     description: Optional[str] = None
+    learning_objectives: Optional[List[str]] = None
+    source_headings: Optional[List[str]] = None
+    source_chunks: Optional[List[str]] = None
+    heading_match_score: Optional[float] = None
+    hallucination_score: Optional[float] = None
     content: Optional[str] = None
     generate_status: str = "pending"
     is_preview: bool = False
@@ -27,6 +32,11 @@ class CurriculumModulePublic(SQLModel):
     curriculum_id: uuid.UUID
     title: str
     description: Optional[str] = None
+    learning_objectives: Optional[List[str]] = None
+    source_headings: Optional[List[str]] = None
+    source_chunks: Optional[List[str]] = None
+    heading_match_score: Optional[float] = None
+    hallucination_score: Optional[float] = None
     content: Optional[str] = None
     generate_status: str = "pending"
     is_preview: bool = False
@@ -41,6 +51,9 @@ class CurriculumModuleCreate(CurriculumModuleBase):
 class CurriculumModuleUpdate(SQLModel):
     title: Optional[str] = None
     description: Optional[str] = None
+    learning_objectives: Optional[List[str]] = None
+    source_headings: Optional[List[str]] = None
+    source_chunks: Optional[List[str]] = None
     content: Optional[str] = None
     generate_status: Optional[str] = None
     is_preview: Optional[bool] = None

@@ -14,6 +14,7 @@ import Lession from './components/home/lession.tsx';
 import ProjectsPage from './components/home/projects.tsx';
 import Upgrade from './components/upgared/upgrade.tsx'
 import OrderPage from './components/order/OrderPage.tsx';
+import CodeReview  from './components/home/code_review.tsx';
 
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
         <Route path="/upgrade" element={<Upgrade/>}/>
         <Route path="/order/:planId" element={<OrderPage />} />
         <Route path="/payment/momo/result" element={<MomoPaymentResultPage />} />
+        <Route path="/lession/:moduleId/code_review" element={<CodeReview />} />
 
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

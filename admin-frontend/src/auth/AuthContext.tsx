@@ -38,7 +38,10 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 const SESSION_HINT_KEY = 'loc-tracking-has-session';
 
-export const getHomePathByRole = (_user: Pick<CurrentUser, 'is_superuser'> | null) => '/admin';
+export const getHomePathByRole = (user: Pick<CurrentUser, 'is_superuser'> | null) => {
+  void user;
+  return '/admin';
+};
 
 const readSessionHint = () => {
   if (typeof window === 'undefined') {

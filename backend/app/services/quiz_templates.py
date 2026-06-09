@@ -1,5 +1,4 @@
-QUESTIONS_PER_QUIZ = 10
-
+QUESTIONS_PER_QUIZ = 15
 
 def build_vietnamese_quiz_questions(
     *,

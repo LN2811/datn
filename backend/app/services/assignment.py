@@ -1,11 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Any
 
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.models.models import Assignments, Projects
+from app.models.models import Assignments, CurriculumModules, Curriculums, Projects
 
 
 class AssignmentService:
@@ -41,6 +40,11 @@ class AssignmentService:
         return [
             {
                 "id": str(assignment.id),
+                "curriculum_module_id": (
+                    str(assignment.curriculum_module_id)
+                    if assignment.curriculum_module_id
+                    else None
+                ),
                 "title": assignment.title,
                 "description": assignment.description,
                 "created_at": assignment.created_at.isoformat(),
@@ -55,6 +59,7 @@ class AssignmentService:
         title: str,
         description: str | None = None,
         *,
+        curriculum_module_id: uuid.UUID | None = None,
         difficulty_level: str | None = None,
         assignment_type: str | None = None,
         generated_by: str | None = None,
@@ -66,8 +71,21 @@ class AssignmentService:
         if not project:
             raise HTTPException(status_code=404, detail="Project not found")
 
+        if curriculum_module_id is not None:
+            module = session.get(CurriculumModules, curriculum_module_id)
+            if not module:
+                raise HTTPException(status_code=404, detail="Module not found")
+
+            curriculum = session.get(Curriculums, module.curriculum_id)
+            if not curriculum or curriculum.project_id != project_id:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Module does not belong to this project",
+                )
+
         assignment = Assignments(
             project_id=project_id,
+            curriculum_module_id=curriculum_module_id,
             title=title,
             description=description,
             created_at=datetime.utcnow(),
@@ -87,6 +105,11 @@ class AssignmentService:
 
         return {
             "id": str(assignment.id),
+            "curriculum_module_id": (
+                str(assignment.curriculum_module_id)
+                if assignment.curriculum_module_id
+                else None
+            ),
             "title": assignment.title,
             "description": assignment.description,
             "difficulty_level": getattr(assignment, "difficulty_level", None),

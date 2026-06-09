@@ -5,13 +5,11 @@ from typing import List
 from fastapi import HTTPException
 from sqlmodel import Session, select
 
-from app.models.models import Curriculums, CurriculumModules, LearningMaterials, Projects
+from app.models.models import Curriculums, CurriculumModules, Projects
 from app.models.schemas.Curriculums.curriculum_schemas import (
     CurriculumCreate,
     CurriculumUpdate,
 )
-from app.services.file_parser import extract_text
-from app.services.ai_service import call_lln
 from app.services.text_cleaner import clean_vietnamese_text
 
 logger = logging.getLogger("uvicorn.error")
@@ -204,6 +202,8 @@ class CurriculumService:
         session: Session,
         project_id: uuid.UUID,
         force_regenerate: bool = False,
+        user_id: uuid.UUID | None = None,
+        requested_module_count: int | None = None,
     ) -> dict:
         from app.services.curriculum_generate import CurriculumGenerationService
 
@@ -211,6 +211,8 @@ class CurriculumService:
             session=session,
             project_id=project_id,
             force_regenerate=force_regenerate,
+            user_id=user_id,
+            requested_module_count=requested_module_count,
         )
 
     def generate_curriculum(
@@ -220,20 +222,20 @@ class CurriculumService:
         project_id: uuid.UUID,
         generated_by: uuid.UUID,
     ) -> dict:
-        del generated_by
         return self.generate_lessons_for_project(
             session=session,
             project_id=project_id,
+            user_id=generated_by,
         )
 
     def generate_lessions(
         self,
         session: Session,
-        project_id,
-        user_id,
+        project_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
     ) -> dict:
-        del user_id
         return self.generate_lessons_for_project(
             session=session,
             project_id=project_id,
+            user_id=user_id,
         )

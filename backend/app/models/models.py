@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Optional, List
 
+from sqlalchemy import Column, JSON
 from sqlmodel import SQLModel, Field, Relationship
 
 class BaseModel(SQLModel):
@@ -169,7 +170,7 @@ class Assignments(BaseModel, table=True):
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     project_id: uuid.UUID = Field(foreign_key="projects.id")
-
+    curriculum_module_id: uuid.UUID = Field(default=None,foreign_key="curriculum_modules.id")
     title: str
     description: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -186,7 +187,12 @@ class CodeSubmissions(BaseModel, table=True):
     user_id: uuid.UUID = Field(foreign_key="users.id")
 
     github_repo_url: str
+    file_path: Optional[str] = None
+    commit_hash: Optional[str] = None
+    score: Optional[float] = Field(default=None, ge=0.0)
+    status: str = Field(default="submitted")
     submitted_at: datetime = Field(default_factory=datetime.utcnow)
+    graded_at: Optional[datetime] = None
 
     assignment: Assignments = Relationship(back_populates="submissions")
     feedback: Optional["AICodeFeedback"] = Relationship(back_populates="submission")
@@ -200,7 +206,13 @@ class AICodeFeedback(BaseModel, table=True):
 
     overview: str
     flow_analysis: Optional[str] = None
+    code_quality_score: Optional[float] = Field(default=None, ge=0.0)
+    logic_score: Optional[float] = Field(default=None, ge=0.0)
+    performance_score: Optional[float] = Field(default=None, ge=0.0)
+    strengths: Optional[str] = None
+    weaknesses: Optional[str] = None
     improvement_suggestions: Optional[str] = None
+    generated_by: str = Field(default="ai")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     submission: CodeSubmissions = Relationship(back_populates="feedback")
@@ -246,6 +258,9 @@ class Curriculums(BaseModel, table=True):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     total_module: Optional[int] = None
     ready_module: int = 0
+    source_coverage_score: Optional[float] = None
+    heading_match_score: Optional[float] = None
+    hallucination_score: Optional[float] = None
 
     project: Projects = Relationship(back_populates="curriculums")
     modules: List["CurriculumModules"] = Relationship(back_populates="curriculum")
@@ -258,6 +273,20 @@ class CurriculumModules(BaseModel, table=True):
 
     title: str
     description: Optional[str] = None
+    learning_objectives: Optional[List[str]] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+    )
+    source_headings: Optional[List[str]] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+    )
+    source_chunks: Optional[List[str]] = Field(
+        default=None,
+        sa_column=Column(JSON, nullable=True),
+    )
+    heading_match_score: Optional[float] = None
+    hallucination_score: Optional[float] = None
     content: Optional[str] = None
     generate_status: str = "pending"
     order_index: Optional[int] = None
@@ -374,3 +403,11 @@ class OrderBase(SQLModel):
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+class AiusageQuota(SQLModel):
+    __tablename__ = "ai_usage_quota"
+    id: uuid.UUID = Field(default_factory= uuid.UUID, primary_key= True)
+    user_id: uuid.UUID = Field(foreign_key="user.id", index=True, unique=True)
+    token_used: int = Field(default=0)
+    reset_at: datetime
+    update_at: datetime = Field(default_factory=datetime.utcnow)

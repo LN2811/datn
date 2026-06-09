@@ -18,23 +18,23 @@ const validateRegisterInput = (
   const normalizedEmail = email.trim();
 
   if (!normalizedEmail) {
-    return 'Vui long nhap email.';
+    return 'Vui lòng nhập email.';
   }
-
+  
   if (!emailRegex.test(normalizedEmail)) {
-    return 'Email khong dung dinh dang.';
+    return 'Email không đúng định dạng.';
   }
 
   if (password.length < 8) {
-    return 'Mat khau toi thieu 8 ky tu.';
+    return 'Mật khẩu tối thiểu 8 ký tự.';
   }
 
   if (password !== confirmPassword) {
-    return 'Xac nhan mat khau khong khop.';
+    return 'Xác nhận mật khẩu không khớp.';
   }
 
   if (!acceptedPolicy) {
-    return 'Vui long dong y voi dieu khoan truoc khi dang ky.';
+    return 'Vui lòng đồng ý với điều khoản trước khi đăng ký.';
   }
 
   return '';
@@ -74,7 +74,7 @@ export function RegisterForm() {
     setIsSubmitting(true);
     try {
       await register(email.trim(), password);
-      setStatus('Dang ky thanh cong. Dang chuyen sang trang dang nhap...');
+      setStatus('Đăng ký thành công. Đang chuyển sang trang đăng nhập...');
       window.setTimeout(() => {
         navigate('/login', { replace: true });
       }, 800);
@@ -82,7 +82,7 @@ export function RegisterForm() {
       setError(
         submitError instanceof Error && submitError.message
           ? submitError.message
-          : 'Dang ky that bai. Vui long thu lai.',
+          : 'Đăng ký thất bại. Vui lòng thử lại.',
       );
     } finally {
       setIsSubmitting(false);
@@ -104,8 +104,8 @@ export function RegisterForm() {
           <div className="register-page__feature">
             <UserPlus size={24} />
             <div>
-              <h1>Tao tai khoan</h1>
-              <p>Dang ky tai khoan user de bat dau quan ly project va bai hoc.</p>
+              <h1>Tạo tài khoản</h1>
+              <p>Đăng ký tài khoản user để bắt đầu quản lý project và bài học.</p>
             </div>
           </div>
         </aside>
@@ -114,7 +114,7 @@ export function RegisterForm() {
           <div className="register-page__card-head">
             <Link className="register-page__back" to="/login">
               <ArrowRight size={16} />
-              Sang trang dang nhap
+              Sang trang đăng nhập
             </Link>
 
             <div className="register-page__badge">
@@ -124,9 +124,9 @@ export function RegisterForm() {
           </div>
 
           <span className="register-page__form-kicker">Create account</span>
-          <h2 className="register-page__form-title">Dang ky</h2>
+          <h2 className="register-page__form-title">Đăng ký</h2>
           <p className="register-page__form-text">
-            Dien email va mat khau de tao tai khoan user thong thuong.
+            Điền email và mật khẩu để tạo tài khoản user thông thường.
           </p>
 
           <form className="register-page__form" onSubmit={handleSubmit}>
@@ -149,7 +149,7 @@ export function RegisterForm() {
 
             <div className="register-page__field">
               <label className="register-page__label" htmlFor="registerPassword">
-                Mat khau
+                Mật khẩu
               </label>
               <div className="register-page__input-shell">
                 <KeyRound size={18} />
@@ -177,7 +177,7 @@ export function RegisterForm() {
 
             <div className="register-page__field">
               <label className="register-page__label" htmlFor="confirmPassword">
-                Xac nhan mat khau
+                Xác nhận mật khẩu
               </label>
               <div className="register-page__input-shell">
                 <KeyRound size={18} />
@@ -189,7 +189,7 @@ export function RegisterForm() {
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   className="register-page__input register-page__input--embedded"
-                  placeholder="Nhap lai mat khau"
+                  placeholder="Nhập lại mật khẩu"
                   required
                 />
                 <button
@@ -209,21 +209,21 @@ export function RegisterForm() {
                 checked={acceptedPolicy}
                 onChange={(event) => setAcceptedPolicy(event.target.checked)}
               />
-              <span>Toi dong y voi dieu khoan su dung.</span>
+              <span>Tôi đồng ý với điều khoản trước khi đăng ký tài khoản.</span>
             </label>
 
             {error ? <p className="register-page__error">{error}</p> : null}
             {status ? <p className="register-page__status">{status}</p> : null}
 
             <button className="register-page__submit" type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Dang xu ly...' : 'Dang ky'}
+              {isSubmitting ? 'Đang xử lý...' : 'Đăng ký'}
             </button>
           </form>
 
           <p className="register-page__helper">
-            Da co tai khoan?
+            Đã có tài khoản?
             <Link className="register-page__helper-link" to="/login">
-              Dang nhap ngay
+              Đăng nhập ngay
             </Link>
           </p>
         </section>

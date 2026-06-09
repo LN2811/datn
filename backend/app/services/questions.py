@@ -15,18 +15,20 @@ from app.models.models import (
     Criteria,
     CurriculumModules,
     Curriculums,
-    MaterialChunk,
     QuestionOptions,
     Questions,
 )
-from app.services.ai_service import call_llm
+from app.services.ai_service import call_llm, clean_extracted_text
+from app.services.ai_transaction import AITransactionService
+from app.services.assessment_Result import AssessmentResultService
+from app.services.context_selector import ContextSelection, ContextSelector, QUIZ
 from app.services.quiz_templates import QUESTIONS_PER_QUIZ
 from app.services.text_cleaner import clean_vietnamese_text, has_vietnamese_mark
 
 logger = logging.getLogger("uvicorn.error")
 
 MAX_QUIZ_SOURCE_CHARS = 2800
-QUIZ_COMPLETION_TOKENS = 1800
+QUIZ_COMPLETION_TOKENS = 2600
 QUIZ_RATE_LIMIT_COOLDOWN_SECONDS = 60
 MIN_QUIZ_SOURCE_WORDS = 30
 _QUIZ_RATE_LIMIT_RETRY_AT: datetime | None = None
@@ -211,10 +213,16 @@ class QuestionService:
             )
         ).first()
         if assignment:
+            if assignment.curriculum_module_id is None:
+                assignment.curriculum_module_id = module.id
+                session.add(assignment)
+                session.commit()
+                session.refresh(assignment)
             return assignment
 
         assignment = Assignments(
             project_id=curriculum.project_id,
+            curriculum_module_id=module.id,
             title=assignment_title,
             description=f"Bài trắc nghiệm riêng cho bài học: {module.title}.",
         )
@@ -273,12 +281,40 @@ class QuestionService:
 
     @staticmethod
     def _limit_source_text(source_text: str) -> str:
-        cleaned = clean_vietnamese_text(source_text or "").strip()
+        cleaned = clean_extracted_text(source_text or "").strip()
         if len(cleaned) <= MAX_QUIZ_SOURCE_CHARS:
             return cleaned
 
-        limited = cleaned[:MAX_QUIZ_SOURCE_CHARS].rsplit("\n", 1)[0].strip()
-        return limited or cleaned[:MAX_QUIZ_SOURCE_CHARS].strip()
+        passages = [
+            passage.strip()
+            for passage in re.split(r"\n\s*\n+", cleaned)
+            if passage.strip()
+        ]
+        if len(passages) <= 1:
+            return cleaned[:MAX_QUIZ_SOURCE_CHARS].strip()
+
+        selected: list[str] = []
+        used_chars = 0
+        target_count = min(len(passages), 8)
+        indices = sorted(
+            {
+                round(step * (len(passages) - 1) / max(target_count - 1, 1))
+                for step in range(target_count)
+            }
+        )
+        per_passage_budget = max(
+            1,
+            (MAX_QUIZ_SOURCE_CHARS - (2 * max(len(indices) - 1, 0))) // len(indices),
+        )
+        for index in indices:
+            passage = passages[index][:per_passage_budget].strip()
+            addition = len(passage) + (2 if selected else 0)
+            if used_chars + addition > MAX_QUIZ_SOURCE_CHARS:
+                break
+            selected.append(passage)
+            used_chars += addition
+
+        return "\n\n".join(selected).strip() or cleaned[:MAX_QUIZ_SOURCE_CHARS].strip()
 
     @staticmethod
     def _has_enough_source_text(source_text: str) -> bool:
@@ -540,6 +576,10 @@ SOURCE_TEXT:
         *,
         source_text: str,
         count: int = QUESTIONS_PER_QUIZ,
+        session: Session | None = None,
+        user_id: uuid.UUID | None = None,
+        project_id: uuid.UUID | None = None,
+        context_selection: ContextSelection | None = None,
     ) -> list[dict]:
         source_text = self._limit_source_text(source_text)
         if not self._has_enough_source_text(source_text):
@@ -554,40 +594,83 @@ SOURCE_TEXT:
             return []
 
         try:
-            response = call_llm(
-                self._build_source_quiz_prompt(source_text),
-                temperature=0.1,
-                max_completion_tokens=QUIZ_COMPLETION_TOKENS,
-                response_format={"type": "json_object"},
-            )
+            prompt = self._build_source_quiz_prompt(source_text)
+            if session is not None and user_id is not None and project_id is not None:
+                response = AITransactionService.chat(
+                    db=session,
+                    user_id=user_id,
+                    project_id=project_id,
+                    action_type="generate_quiz_questions",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        }
+                    ],
+                    response_format={
+                        "type": "json_object",
+                    },
+                    temperature=0.1,
+                    max_completion_tokens=QUIZ_COMPLETION_TOKENS,
+                    context_selection=context_selection,
+                )
+            else:
+                response = call_llm(
+                    prompt,
+                    temperature=0.1,
+                    max_completion_tokens=QUIZ_COMPLETION_TOKENS,
+                    response_format={"type": "json_object"},
+                    context_selection=context_selection,
+                )
+
             raw_questions = self._parse_ai_questions(response)
+        except HTTPException as exc:
+            if exc.status_code == 429 or self._is_rate_limit_error(exc):
+                self._mark_rate_limit_cooldown(exc)
+                logger.warning(
+                    "AI provider rate limit detected during quiz question generation. Marking cooldown. error=%s",
+                    str(exc),
+                )
+                return []
+            if exc.status_code in {400, 403}:
+                raise
+            logger.error(
+                "AI provider returned an HTTP error during quiz question generation. status_code=%s error=%s",
+                exc.status_code,
+                str(exc.detail),
+                exc_info=True,
+            )
+            return []
         except Exception as exc:
             if self._is_rate_limit_error(exc):
                 self._mark_rate_limit_cooldown(exc)
                 logger.warning(
-                    "AI provider rate limit reached while generating quiz questions. retry_at=%s",
-                    (_QUIZ_RATE_LIMIT_RETRY_AT.isoformat() if _QUIZ_RATE_LIMIT_RETRY_AT else None),
+                    "AI provider rate limit detected during quiz question generation. Marking cooldown. error=%s",
+                    str(exc),
                 )
-                return []
-
-            logger.info(
-                "Failed to generate source-grounded quiz questions. error_type=%s error=%s",
-                type(exc).__name__,
-                exc,
-            )
+            else:
+                logger.error(
+                    "Error during quiz question generation. error=%s",
+                    str(exc),
+                    exc_info=True,
+                )
             return []
-
         normalized_questions: list[dict] = []
         for item in raw_questions:
             if len(normalized_questions) >= count:
                 break
-            normalized_item = self._normalize_ai_question_item(
+            normalized = self._normalize_ai_question_item(
                 item,
                 source_text=source_text,
             )
-            if normalized_item:
-                normalized_questions.append(normalized_item)
-
+            if normalized:
+                normalized_questions.append(normalized)
+        logger.info(
+            "Quiz questions generated. source_chars=%s requested_questions=%s generated_questions=%s",
+            len(source_text),
+            count,
+            len(normalized_questions),
+        )
         return normalized_questions
 
     def _create_source_questions(
@@ -600,11 +683,21 @@ SOURCE_TEXT:
         curriculum_module_id: uuid.UUID | None = None,
         generated_by: str = "ai",
         count: int = QUESTIONS_PER_QUIZ,
+        user_id: uuid.UUID | None = None,
     ) -> list[Questions]:
         created_questions: list[Questions] = []
+        context_selection = ContextSelector(session).select_text(
+            QUIZ,
+            source_text,
+            retrieval_strategy="quiz_source_text_guard",
+        )
         generated_questions = self._generate_question_payloads_from_source(
-            source_text=source_text,
+            source_text=context_selection.text,
             count=count,
+            session=session,
+            user_id=user_id,
+            project_id=assignment.project_id if assignment else None,
+            context_selection=context_selection,
         )
 
         for generated_question in generated_questions[:count]:
@@ -651,21 +744,13 @@ SOURCE_TEXT:
         assignment: Assignments,
         fallback_text: str = "",
     ) -> str:
-        chunks_by_material: list[str] = []
-        materials = list(getattr(assignment.project, "materials", []) or [])
-        for material in materials:
-            chunks = session.exec(
-                select(MaterialChunk)
-                .where(MaterialChunk.material_id == material.id)
-                .order_by(MaterialChunk.chunk_index)
-            ).all()
-            chunks_by_material.extend(chunk.content for chunk in chunks if chunk.content)
-
-        source_text = "\n\n".join(chunks_by_material).strip()
-        if not source_text:
-            source_text = fallback_text
-
-        return self._limit_source_text(source_text)
+        selection = ContextSelector(session).select(
+            QUIZ,
+            assignment.project_id,
+            module_id=assignment.curriculum_module_id,
+            assignment=assignment,
+        )
+        return self._limit_source_text(selection.text or fallback_text)
 
     def get_questions(
         self,
@@ -736,6 +821,7 @@ SOURCE_TEXT:
         *,
         session: Session,
         assignment_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
     ) -> dict:
         assignment = session.get(Assignments, assignment_id)
         if not assignment:
@@ -744,6 +830,7 @@ SOURCE_TEXT:
         questions = self._ensure_assignment_questions(
             session=session,
             assignment=assignment,
+            user_id=user_id,
         )
         question_ids = [question.id for question in questions]
         option_rows: list[QuestionOptions] = []
@@ -792,6 +879,7 @@ SOURCE_TEXT:
         *,
         session: Session,
         assignment: Assignments,
+        user_id: uuid.UUID | None = None,
     ) -> list[Questions]:
         assignment_field = self._assignment_field()
         if assignment_field is None:
@@ -821,6 +909,7 @@ SOURCE_TEXT:
                 session=session,
                 assignment=assignment,
                 criteria_id=criteria.id,
+                user_id=user_id,
                 source_text=self._collect_assignment_source_text(
                     session=session,
                     assignment=assignment,
@@ -851,6 +940,7 @@ SOURCE_TEXT:
         session: Session,
         module: CurriculumModules,
         curriculum: Curriculums,
+        user_id: uuid.UUID | None = None,
     ) -> list[Questions]:
         questions = session.exec(
             select(Questions)
@@ -875,13 +965,17 @@ SOURCE_TEXT:
             or len(valid_existing_questions) < QUESTIONS_PER_QUIZ
         )
         if needs_generation:
+            selection = ContextSelector(session).select(
+                QUIZ,
+                curriculum.project_id,
+                module_id=module.id,
+            )
             created_questions = self._create_source_questions(
                 session=session,
                 assignment=assignment,
                 criteria_id=criteria.id,
-                source_text=self._extract_lesson_source_text(
-                    module.content or module.description or module.title
-                ),
+                user_id=user_id,
+                source_text=self._extract_lesson_source_text(selection.text),
                 curriculum_module_id=module.id,
                 count=QUESTIONS_PER_QUIZ,
             )
@@ -907,6 +1001,7 @@ SOURCE_TEXT:
         *,
         session: Session,
         module_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
     ) -> dict:
         module = session.get(CurriculumModules, module_id)
         if not module:
@@ -920,6 +1015,7 @@ SOURCE_TEXT:
             session=session,
             module=module,
             curriculum=curriculum,
+            user_id=user_id,
         )
         question_ids = [question.id for question in questions]
         option_rows: list[QuestionOptions] = []
@@ -963,6 +1059,71 @@ SOURCE_TEXT:
                 if options_by_question.get(question.id)
             ],
         }
+
+    @staticmethod
+    def _build_quiz_evaluation(
+        *,
+        score: float,
+        correct_count: int,
+        total_questions: int,
+    ) -> dict:
+        if score > 80:
+            readiness_level = "high"
+            title = "Ket qua tot"
+            summary = "Ban nam kha vung noi dung bai kiem tra."
+            recommendations = [
+                "Tiep tuc luyen tap voi cac cau hoi kho hon.",
+                "Xem lai giai thich tung cau de tranh sai sot nho.",
+            ]
+        elif score >= 50:
+            readiness_level = "medium"
+            title = "Can on tap them"
+            summary = "Ban da nam duoc mot phan noi dung, nhung van con diem can cung co."
+            recommendations = [
+                "On lai cac cau tra loi sai va phan giai thich.",
+                "Lam lai bai sau khi xem lai tai lieu lien quan.",
+            ]
+        else:
+            readiness_level = "low"
+            title = "Can hoc lai kien thuc nen"
+            summary = "Ket qua cho thay ban can cung co lai cac noi dung chinh truoc khi tiep tuc."
+            recommendations = [
+                "Doc lai bai hoc va ghi chu cac y chinh.",
+                "Lam lai bai kiem tra sau khi on tung nhom cau hoi.",
+            ]
+
+        return {
+            "readiness_level": readiness_level,
+            "title": title,
+            "summary": summary,
+            "correct_count": correct_count,
+            "total_questions": total_questions,
+            "score": score,
+            "recommendations": recommendations,
+        }
+
+    @staticmethod
+    def _serialize_assessment_result(result) -> dict | None:
+        if not result:
+            return None
+
+        return {
+            "id": str(result.id),
+            "user_id": str(result.user_id),
+            "project_id": str(result.project_id),
+            "total_score": result.total_score,
+            "readiness_level": result.readiness_level,
+            "created_at": result.created_at.isoformat() if result.created_at else None,
+        }
+
+    def _create_quiz_assessment_result(
+        self,
+        *,
+        session: Session,
+        attempt_id: uuid.UUID,
+    ) -> dict | None:
+        result = AssessmentResultService(session).create_from_attempt(attempt_id)
+        return self._serialize_assessment_result(result)
 
     def submit_assignment_quiz(
         self,
@@ -1095,6 +1256,10 @@ SOURCE_TEXT:
         percentage = round((correct_count / total_questions) * 100, 2)
         session.commit()
         session.refresh(attempt)
+        assessment_result = self._create_quiz_assessment_result(
+            session=session,
+            attempt_id=attempt.id,
+        )
 
         return {
             "attempt_id": str(attempt.id),
@@ -1102,6 +1267,12 @@ SOURCE_TEXT:
             "score": percentage,
             "correct_count": correct_count,
             "total_questions": total_questions,
+            "evaluation": self._build_quiz_evaluation(
+                score=percentage,
+                correct_count=correct_count,
+                total_questions=total_questions,
+            ),
+            "assessment_result": assessment_result,
             "results": results,
         }
 
@@ -1125,6 +1296,7 @@ SOURCE_TEXT:
             session=session,
             module=module,
             curriculum=curriculum,
+            user_id=user_id,
         )
         question_ids = [question.id for question in questions]
         if not question_ids:
@@ -1228,6 +1400,10 @@ SOURCE_TEXT:
         percentage = round((correct_count / total_questions) * 100, 2)
         session.commit()
         session.refresh(attempt)
+        assessment_result = self._create_quiz_assessment_result(
+            session=session,
+            attempt_id=attempt.id,
+        )
 
         return {
             "attempt_id": str(attempt.id),
@@ -1236,6 +1412,12 @@ SOURCE_TEXT:
             "score": percentage,
             "correct_count": correct_count,
             "total_questions": total_questions,
+            "evaluation": self._build_quiz_evaluation(
+                score=percentage,
+                correct_count=correct_count,
+                total_questions=total_questions,
+            ),
+            "assessment_result": assessment_result,
             "results": results,
         }
 
@@ -1247,6 +1429,7 @@ SOURCE_TEXT:
         criteria_id: uuid.UUID,
         content: str,
         generated_by: str = "ai",
+        user_id: uuid.UUID | None = None,
     ) -> list[Questions]:
         assignment = session.get(Assignments, assignment_id)
         if not assignment:
@@ -1268,6 +1451,7 @@ SOURCE_TEXT:
             source_text=source_text,
             generated_by=generated_by,
             count=QUESTIONS_PER_QUIZ,
+            user_id=user_id,
         )
 
         if not created_questions:

@@ -11,7 +11,7 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 
 from app.core.config import settings
-from app.models.models import PaymentTransactions, PricingPlans
+from app.models.models import PaymentTransactions, PricingPlans, Users
 from app.services.Pricing_plans import PricingPlanService
 from sqlalchemy import func
 
@@ -86,11 +86,18 @@ class MomoPaymentService:
         return partner_code, access_key, endpoint, redirect_url, ipn_url
 
     @staticmethod
-    def _serialize_transaction(transaction: PaymentTransactions) -> dict:
+    def _serialize_transaction(
+        transaction: PaymentTransactions,
+        *,
+        user: Users | None = None,
+        plan: PricingPlans | None = None,
+    ) -> dict:
         return {
             "id": str(transaction.id),
             "user_id": str(transaction.user_id),
+            "user_email": user.email if user else None,
             "plan_id": str(transaction.plan_id),
+            "plan_name": plan.name if plan else None,
             "amount": transaction.amount,
             "currency": transaction.currency,
             "payment_provider": transaction.payment_provider,
@@ -247,6 +254,45 @@ class MomoPaymentService:
         data["payment_required"] = True
         return data
 
+    def create_card_payment(self, *, user_id: uuid.UUID, plan_id: uuid.UUID) -> dict:
+        plan = self.session.get(PricingPlans, plan_id)
+        if not plan:
+            raise HTTPException(status_code=404, detail="Plan not found")
+        if hasattr(plan, "is_active") and getattr(plan, "is_active") is False:
+            raise HTTPException(status_code=400, detail="Plan is not active")
+
+        now = datetime.utcnow()
+        amount = int(round(float(plan.price or 0)))
+        transaction = PaymentTransactions(
+            user_id=user_id,
+            plan_id=plan_id,
+            amount=amount,
+            currency="VND",
+            payment_provider="card",
+            order_id=f"card-{plan_id.hex[:8]}-{uuid.uuid4().hex}",
+            request_id=str(uuid.uuid4()),
+            provider_transaction_id=f"card-{uuid.uuid4().hex}",
+            status="paid",
+            result_code=0,
+            message="Card payment completed",
+            paid_at=now,
+            update_at=now,
+        )
+        self.session.add(transaction)
+        self.session.commit()
+        self.session.refresh(transaction)
+
+        subscription = PricingPlanService(self.session).subscribe_plan(
+            user_id=user_id,
+            plan_id=plan_id,
+        )
+
+        data = self._serialize_transaction(transaction, plan=plan)
+        data["payment_required"] = False
+        data["subscription"] = subscription
+        data["message"] = "Card payment completed"
+        return data
+
     def _build_ipn_signature(self, data: dict) -> str:
         access_key = settings.MOMO_ACCESS_KEY
         if not access_key:
@@ -332,7 +378,7 @@ class MomoPaymentService:
         self,
         *,
         status: str | None = None,
-        user_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
         skip: int = 0,
         limit: int = 20,
     ) -> dict:
@@ -359,8 +405,15 @@ class MomoPaymentService:
         transactions = self.session.exec(
             statement.order_by(PaymentTransactions.created_at.desc()).offset(skip).limit(limit)
         ).all()
+
+        items = []
+        for transaction in transactions:
+            user = self.session.get(Users, transaction.user_id)
+            plan = self.session.get(PricingPlans, transaction.plan_id)
+            items.append(self._serialize_transaction(transaction, user=user, plan=plan))
+
         return {
-            "items": [self._serialize_transaction(tx) for tx in transactions],
+            "items": items,
             "total": total,
             "limit": limit,
             "skip": skip,

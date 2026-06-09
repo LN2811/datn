@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -6,12 +6,12 @@ import {
   Loader2,
   ShieldCheck,
   Wallet,
-} from 'lucide-react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+} from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { api } from '@/api/axios';
+import { api } from "@/api/axios";
 
-import './order.css';
+import "./order.css";
 
 type PricingPlan = {
   id: string;
@@ -28,24 +28,27 @@ type PaymentCreateResponse = {
   pay_url?: string | null;
   deeplink?: string | null;
   order_id?: string | null;
+  status?: string | null;
   message?: string | null;
 };
 
+type PaymentMethod = "momo" | "card";
+
 const formatPrice = (price: number) => {
   if (price <= 0) {
-    return 'Free';
+    return "Miễn phí";
   }
 
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND',
+  return new Intl.NumberFormat("vi-VN", {
+    style: "currency",
+    currency: "VND",
     maximumFractionDigits: 0,
   }).format(price);
 };
 
 const getErrorMessage = (error: unknown) => {
-  if (!error || typeof error !== 'object') {
-    return 'Khong the tao thanh toan. Vui long thu lai.';
+  if (!error || typeof error !== "object") {
+    return "Không thể tạo thanh toán. Vui lòng thử lại.";
   }
 
   const source = error as {
@@ -53,15 +56,15 @@ const getErrorMessage = (error: unknown) => {
     message?: unknown;
   };
 
-  if (typeof source.response?.data?.detail === 'string') {
+  if (typeof source.response?.data?.detail === "string") {
     return source.response.data.detail;
   }
 
-  if (typeof source.message === 'string') {
+  if (typeof source.message === "string") {
     return source.message;
   }
 
-  return 'Khong the tao thanh toan. Vui long thu lai.';
+  return "Không thể tạo thanh toán. Vui lòng thử lại.";
 };
 
 export function OrderPage() {
@@ -70,23 +73,24 @@ export function OrderPage() {
   const [plan, setPlan] = useState<PricingPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("momo");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
     let isMounted = true;
 
     const fetchPlan = async () => {
       if (!planId) {
-        setError('Khong tim thay goi dich vu.');
+        setError("Không tìm thấy gói dịch vụ.");
         setIsLoading(false);
         return;
       }
 
       try {
         setIsLoading(true);
-        setError('');
-        const response = await api.get<PricingPlan[]>('/pricing-plans');
+        setError("");
+        const response = await api.get<PricingPlan[]>("/pricing-plans");
         const selectedPlan = response.data.find((item) => item.id === planId);
 
         if (!isMounted) {
@@ -94,7 +98,7 @@ export function OrderPage() {
         }
 
         if (!selectedPlan) {
-          setError('Goi dich vu khong ton tai hoac da bi an.');
+          setError("Gói dịch vụ không tồn tại hoặc đã bị ẩn.");
           setPlan(null);
           return;
         }
@@ -125,13 +129,13 @@ export function OrderPage() {
 
     return [
       plan.ai_usage_limit
-        ? `${plan.ai_usage_limit} luot su dung AI`
-        : 'Khong gioi han AI theo cau hinh goi',
+        ? `${plan.ai_usage_limit} lượt xử lý học tập mỗi tháng`
+        : "Không giới hạn lượt xử lý học tập theo cấu hình gói",
       plan.max_projects
-        ? `Toi da ${plan.max_projects} project`
-        : 'Khong gioi han project theo cau hinh goi',
-      'Tao bai hoc va cau hoi tu tai lieu',
-      'Theo doi tien do hoc tap va ket qua bai lam',
+        ? `Tối đa ${plan.max_projects} dự án`
+        : "Không giới hạn số lượng dự án theo cấu hình gói",
+      "Tạo bài học và câu hỏi từ tài liệu",
+      "Theo dõi tiến độ học tập và kết quả bài làm",
     ];
   }, [plan]);
 
@@ -141,19 +145,29 @@ export function OrderPage() {
     }
 
     setIsSubmitting(true);
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     try {
-      const response = await api.post<PaymentCreateResponse>('/payments/momo/create', {
+      const endpoint =
+        selectedPaymentMethod === "card" ? "/payments/card/create" : "/payments/momo/create";
+      const response = await api.post<PaymentCreateResponse>(endpoint, {
         plan_id: planId,
       });
       const data = response.data;
 
-      if (data.payment_required === false) {
-        setSuccess(data.message || 'Dang ky goi thanh cong.');
+      if (selectedPaymentMethod === "card" || data.status === "paid") {
+        setSuccess(data.message || "Thanh toán bằng thẻ thành công.");
         window.setTimeout(() => {
-          navigate('/dashboard', { replace: true });
+          navigate("/dashboard", { replace: true });
+        }, 900);
+        return;
+      }
+
+      if (data.payment_required === false) {
+        setSuccess(data.message || "Đăng ký gói thành công.");
+        window.setTimeout(() => {
+          navigate("/dashboard", { replace: true });
         }, 900);
         return;
       }
@@ -169,7 +183,7 @@ export function OrderPage() {
         return;
       }
 
-      setError('MoMo khong tra ve duong dan thanh toan.');
+      setError("Không nhận được đường dẫn thanh toán.");
     } catch (requestError) {
       setError(getErrorMessage(requestError));
     } finally {
@@ -183,19 +197,19 @@ export function OrderPage() {
         <div className="order-topbar">
           <Link className="order-back" to="/upgrade">
             <ArrowLeft size={18} />
-            Quay lai goi dich vu
+            Quay lại gói dịch vụ
           </Link>
         </div>
 
         <header className="order-header">
-          <p>Thanh toan</p>
-          <h1>Xac nhan goi dich vu</h1>
+          <p>Thanh toán</p>
+          <h1>Xác nhận gói dịch vụ</h1>
         </header>
 
         {isLoading ? (
           <div className="order-state">
             <Loader2 className="order-spin" size={20} />
-            Dang tai thong tin goi...
+            Đang tải thông tin gói...
           </div>
         ) : null}
 
@@ -220,18 +234,18 @@ export function OrderPage() {
                 <Wallet size={28} />
               </div>
               <div className="order-summary__heading">
-                <span>Goi da chon</span>
+                <span>Gói đã chọn</span>
                 <h2>{plan.name}</h2>
-                <p>{plan.description || 'Goi dich vu hoc tap voi AI.'}</p>
+                <p>{plan.description || "Gói dịch vụ học tập nâng cao."}</p>
               </div>
 
               <dl className="order-summary__meta">
                 <div>
-                  <dt>Trang thai</dt>
-                  <dd>{plan.is_active ? 'Dang mo' : 'Tam khoa'}</dd>
+                  <dt>Trạng thái</dt>
+                  <dd>{plan.is_active ? "Đang mở" : "Tạm khóa"}</dd>
                 </div>
                 <div>
-                  <dt>Gia goi</dt>
+                  <dt>Giá gói</dt>
                   <dd>{formatPrice(plan.price)}</dd>
                 </div>
               </dl>
@@ -247,21 +261,44 @@ export function OrderPage() {
             </article>
 
             <aside className="order-payment">
-              <h2>Phuong thuc thanh toan</h2>
+              <h2>Phương thức thanh toán</h2>
               <div className="payment-methods">
-                <button type="button" className="payment-method payment-method--selected">
+                <button
+                  type="button"
+                  className={[
+                    "payment-method",
+                    selectedPaymentMethod === "momo" ? "payment-method--selected" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => setSelectedPaymentMethod("momo")}
+                >
+                  <span className="payment-method__icon">
+                    <Wallet size={22} />
+                  </span>
+                  <span>
+                    <strong>MoMo</strong>
+                    <small>Chuyển đến cổng MoMo để hoàn tất giao dịch.</small>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={[
+                    "payment-method",
+                    selectedPaymentMethod === "card" ? "payment-method--selected" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => setSelectedPaymentMethod("card")}
+                >
                   <span className="payment-method__icon">
                     <CreditCard size={22} />
                   </span>
                   <span>
-                    <strong>MoMo</strong>
-                    <small>Chuyen den cong thanh toan MoMo de hoan tat giao dich.</small>
+                    <strong>Thẻ ngân hàng</strong>
+                    <small>Tạm thời xác nhận thành công ngay sau khi bấm thanh toán.</small>
                   </span>
                 </button>
               </div>
 
               <div className="order-total">
-                <span>Tong thanh toan</span>
+                <span>Tổng thanh toán</span>
                 <strong>{formatPrice(plan.price)}</strong>
               </div>
 
@@ -272,7 +309,11 @@ export function OrderPage() {
                 onClick={handleCreatePayment}
               >
                 {isSubmitting ? <Loader2 className="order-spin" size={18} /> : null}
-                {isSubmitting ? 'Dang tao thanh toan...' : 'Thanh toan voi MoMo'}
+                {isSubmitting
+                  ? "Đang xử lý thanh toán..."
+                  : selectedPaymentMethod === "card"
+                    ? "Thanh toán bằng thẻ"
+                    : "Thanh toán với MoMo"}
               </button>
             </aside>
           </section>

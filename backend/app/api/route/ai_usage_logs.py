@@ -65,3 +65,13 @@ def admin_dashboard_stats(
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin privileges required")
     return AIUsageService().admin_dashboard_stats(session=session)
+
+@router.get("/ai_usage/me")
+def get_my_ai(
+    session: SessionDep,
+    current_user: Users = Depends(Authen.get_current_user),
+):
+    return AIUsageService().get_quota_status(
+        session=session,
+        user_id=current_user.id,
+    )

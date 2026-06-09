@@ -174,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const currentUser = await refreshUser();
       if (!currentUser) {
-        throw new Error('Dang nhap thanh cong nhung khong lay duoc thong tin nguoi dung.');
+        throw new Error('Đăng nhập thành công nhưng không lấy được thông tin người dùng.');
       }
 
       return currentUser;
@@ -197,7 +197,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const currentUser = await refreshUser();
       if (!currentUser) {
-        throw new Error('Dang ky thanh cong nhung khong lay duoc thong tin nguoi dung.');
+        throw new Error('Đăng ký thành công nhưng không lấy được thông tin người dùng.');
       }
 
       return currentUser;

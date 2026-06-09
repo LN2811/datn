@@ -18,7 +18,7 @@ const getMessage = (error: unknown): string => {
     return error.message;
   }
 
-  return 'Dang nhap that bai. Vui long thu lai.';
+  return 'Đăng nhập thất bại. Vui lòng thử lại.';
 };
 
 const getRequestedPath = (state: unknown): string | null => {
@@ -40,15 +40,15 @@ const getRequestedPath = (state: unknown): string | null => {
 const validateLoginInput = (email: string, password: string): string | null => {
   const normalizedEmail = email.trim();
   if (!normalizedEmail) {
-    return 'Vui long nhap email.';
+    return 'Vui lòng nhập email.';
   }
 
   if (!emailRegex.test(normalizedEmail)) {
-    return 'Email khong dung dinh dang.';
+    return 'Email không đúng định dạng.';
   }
 
   if (password.length < 6) {
-    return 'Mat khau toi thieu 6 ky tu.';
+    return 'Mật khẩu tối thiểu 6 ký tự.';
   }
 
   return null;
@@ -116,7 +116,7 @@ export function LoginForm() {
               </div>
               <div>
                 <h2>Role-based access</h2>
-                <p>Moi tai khoan se duoc dieu huong vao dung khu vuc lam viec.</p>
+                <p>Mỗi tài khoản sẽ được điều hướng vào đúng khu vực làm việc.</p>
               </div>
             </article>
 
@@ -126,17 +126,17 @@ export function LoginForm() {
               </div>
               <div>
                 <h2>LOC tracking</h2>
-                <p>Theo doi ket qua nop bai va tien do hoc tap ro rang hon.</p>
+                <p>Theo dõi kết quả nộp bài và tiến độ học tập rõ ràng hơn.</p>
               </div>
             </article>
-
+    
             <article className="login-page__feature">
               <div className="login-page__feature-icon">
                 <UserRound size={20} />
               </div>
               <div>
                 <h2>Single entry point</h2>
-                <p>Dang nhap mot lan de vao dashboard hoac khu vuc admin.</p>
+                <p>Đăng nhập một lần để vào dashboard hoặc khu vực admin.</p>
               </div>
             </article>
           </div>
@@ -155,9 +155,9 @@ export function LoginForm() {
           </div>
 
           <span className="login-page__form-kicker">Account access</span>
-          <h2 className="login-page__form-title">Dang nhap</h2>
+          <h2 className="login-page__form-title">Đăng nhập</h2>
           <p className="login-page__form-text">
-            Nhap email va mat khau de tiep tuc vao he thong.
+            Nhập email và mật khẩu để tiếp tục vào hệ thống.
           </p>
 
          
@@ -182,7 +182,7 @@ export function LoginForm() {
 
             <div className="login-page__field">
   <label className="login-page__label" htmlFor="password">
-    Mat khau
+    Mật khẩu
   </label>
 
   <div className="login-page__input-shell"> 
@@ -207,7 +207,7 @@ export function LoginForm() {
     </button>
   </div>
   <Link className='forgot_password' to="/forgot-password">
-    Quen mat khau
+    Quên mật khẩu
   </Link>
 </div>
             {error ? <p className="login-page__error">{error}</p> : null}
@@ -217,18 +217,18 @@ export function LoginForm() {
               type="submit"
               disabled={isSubmitting}
             >
-              {isSubmitting ? 'Dang xu ly...' : 'Dang nhap'}
+              {isSubmitting ? 'Đang xử lý...' : 'Đăng nhập'}
             </button>
           </form>
 
           <p className="login-page__helper">
-            Sau khi dang nhap, he thong se tu dong dieu huong den dung trang cho
-            vai tro cua ban.
+            Sau khi đăng nhập, hệ thống sẽ tự động điều hướng đến đúng trang cho
+            vai trò của bạn.
           </p>
           <p className="login-page__helper login-page__helper--spaced">
-            Chua co tai khoan?
+            Chưa có tài khoản?
             <Link className="login-page__helper-link" to="/register">
-              Mo trang dang ky
+              Mở trang đăng ký
             </Link>
           </p>
         </section>

@@ -47,9 +47,7 @@ export function MomoPaymentResultPage() {
 
     const fetchStatus = async () => {
       try {
-        const response = await api.get<PaymentStatus>(
-          `/payments/momo/status/${orderId}`,
-        );
+        const response = await api.get<PaymentStatus>(`/payments/status/${orderId}`);
         if (!isMounted) {
           return;
         }

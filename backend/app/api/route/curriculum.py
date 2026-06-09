@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from app.api.deps import SessionDep
@@ -113,6 +113,7 @@ def generate_lessons_for_project(
     session: SessionDep,
     current_user: Users = Depends(Authen.get_current_user),
     force_regenerate: bool = False,
+    module_count: int | None = Query(None, ge=1, le=20),
 ):
     with ai_usage_tracking_context(
         session=session,
@@ -124,4 +125,6 @@ def generate_lessons_for_project(
             session=session,
             project_id=project_id,
             force_regenerate=force_regenerate,
+            user_id=current_user.id,
+            requested_module_count=module_count,
         )

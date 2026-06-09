@@ -141,12 +141,12 @@ const getAvatarInitials = (name?: string | null, email?: string | null) => {
 
 const formatDateTime = (value?: string | null) => {
   if (!value) {
-    return 'Chua co du lieu';
+    return 'Chưa có dữ liệu';
   }
 
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    return 'Chua co du lieu';
+    return 'Chưa có dữ liệu';
   }
 
   return parsed.toLocaleString('vi-VN', {
@@ -170,19 +170,19 @@ const getReadinessMeta = (level?: string | null) => {
       return {
         label: 'San sang trung binh',
         tone: 'medium' as const,
-        description: 'Dang co nen tang, nhung can giam cac diem yeu hien tai.',
+        description: 'Đang có nền tảng, nhưng cần giảm các điểm yếu hiện tại.',
       };
     case 'low':
       return {
         label: 'Can cuong co',
         tone: 'low' as const,
-        description: 'Nen uu tien kien thuc nen va lap lai nhip hoc on dinh.',
+        description: 'Nên ưu tiên kiến thức nền và lặp lại nhịp học ổn định.',
       };
     default:
       return {
-        label: 'Chua danh gia',
+        label: 'Chưa đánh giá',
         tone: 'empty' as const,
-        description: 'Ban chua co ket qua tu danh gia cho project nay.',
+        description: 'Bạn chưa có kết quả tự đánh giá cho dự án này.',
       };
   }
 };
@@ -219,7 +219,7 @@ const getErrorMessage = (error: unknown) => {
     return error.message;
   }
 
-  return 'Khong tai duoc dashboard. Vui long thu lai.';
+  return 'Không tải được dashboard. Vui lòng thử lại.';
 };
 
 const getCreateProjectErrorMessage = (error: unknown) => {
@@ -240,16 +240,16 @@ const getCreateProjectErrorMessage = (error: unknown) => {
     return error.message;
   }
 
-  return 'Khong tao duoc project. Vui long thu lai.';
+  return 'Không tạo được dự án. Vui lòng thử lại.';
 };
 
 const validateProjectInput = (payload: CreateProjectPayload) => {
   if (!payload.name.trim()) {
-    return 'Vui long nhap ten project.';
+    return 'Vui lòng nhập tên dự án.';
   }
 
   if (payload.name.trim().length < 3) {
-    return 'Ten project can it nhat 3 ky tu.';
+    return 'Tên dự án phải có ít nhất 3 ký tự.';
   }
 
   return null;
@@ -312,7 +312,7 @@ export function DashboardPage() {
       const respont = await api.get<CurrentSubscription | null>("/pricing-plans/subscriptions/me/current",);
       setsubscription(respont.data);
     }catch{
-      setError("khong the kiem tra goi dich vu hien tai");
+      setError("không thể kiểm tra gói dịch vụ hiện tại");
       setsubscription(null);
     }finally{
       setIsLoading(false);
@@ -350,7 +350,7 @@ export function DashboardPage() {
       const createResponse = await api.post<CreatedProject>('/projects', payload);
       const response = await loadDashboardOverview();
       setOverview(response);
-      setCreateProjectStatus('Da tao project moi thanh cong.');
+      setCreateProjectStatus('Đã tạo dự án mới thành công.');
       resetCreateProjectForm();
       setIsCreateOpen(false);
       setError('');
@@ -372,30 +372,30 @@ export function DashboardPage() {
 
   const summaryCards: SummaryCard[] = [
     {
-      label: 'Project dang theo hoc',
+      label: 'Dự án đang theo học',
       value: String(summary?.total_projects ?? 0),
-      detail: 'Tong so project ban dang co lien quan trong he thong.',
+      detail: 'Tổng số dự án bạn đang có liên quan trong hệ thống.',
       icon: FolderKanban,
       tone: 'blue',
     },
     {
-      label: 'Tien do trung binh',
+      label: 'Tiến độ trung bình',
       value: `${summary?.average_progress ?? 0}%`,
-      detail: 'Ty le bai tap da nop tren tong bai tap duoc theo doi.',
+      detail: 'Tỷ lệ bài tập đã nộp trên tổng số bài tập được theo dõi.',
       icon: TrendingUp,
       tone: 'teal',
     },
     {
-      label: 'Bai tap da nop',
+      label: 'Bài tập đã nộp',
       value: `${summary?.submitted_assignments ?? 0}/${summary?.tracked_assignments ?? 0}`,
-      detail: 'Muc do hoan thanh bai tap tren tat ca project cua ban.',
+      detail: 'Mức độ hoàn thành bài tập trên tất cả dự án của bạn.',
       icon: CheckCircle2,
       tone: 'amber',
     },
     {
-      label: 'Lan tu danh gia',
+      label: 'Lần tự đánh giá',
       value: String(summary?.assessments_completed ?? 0),
-      detail: 'So project da co ket qua danh gia muc do san sang hoc tap.',
+      detail: 'Số dự án đã có kết quả đánh giá mức độ sẵn sàng học tập.',
       icon: Brain,
       tone: 'ink',
     },
@@ -410,9 +410,9 @@ export function DashboardPage() {
       <div className="study-dashboard__shell">
         <header className="study-dashboard__bar">
           <div className="study-dashboard__bar-copy">
-            <span className="study-dashboard__kicker">Learning workspace</span>
+            <span className="study-dashboard__kicker">Không gian học tập</span>
             {hasActiveSubscription?(
-              <h1>Dashboard</h1>
+              <h1>Bảng điều khiển</h1>
             ): (
               <Link className='upgrade' to="/upgrade">Nâng cấp</Link>
             )}
@@ -429,7 +429,7 @@ export function DashboardPage() {
               <span className="study-dashboard__account-avatar">{avatarInitials}</span>
               <span className="study-dashboard__account-copy">
                 <strong>{displayName}</strong>
-                <span>{user?.email ?? 'Khong co email'}</span>
+                <span>{user?.email ?? 'Không có email'}</span>
               </span>
             </Link>
           </div>
@@ -438,8 +438,8 @@ export function DashboardPage() {
         <section className="study-dashboard__hero">
           <div className="study-dashboard__hero-main">
             <div className="study-dashboard__hero-head">
-              <span className="study-dashboard__eyebrow">Overview</span>
-              <h2>Tong quan hoc tap</h2>
+              <span className="study-dashboard__eyebrow">Tổng quan</span>
+              <h2>Tổng quan học tập</h2>
             </div>
 
             <div className="study-dashboard__summary-grid">
@@ -465,8 +465,8 @@ export function DashboardPage() {
             <section className="study-dashboard__section-card">
               <div className="study-dashboard__section-head">
                 <Link to="/projects" className="project-section__link">
-                  <span className="study-dashboard__section-kicker">Projects</span>
-                  <h2 style={{color:'black'}}>Cac project dang theo hoc</h2>
+                  <span className="study-dashboard__section-kicker">Dự án</span>
+                  <h2 style={{color:'black'}}>Các dự án đang theo học</h2>
                 </Link>
                 <LayoutDashboard size={20} />
               </div>
@@ -492,10 +492,10 @@ export function DashboardPage() {
                 <div className="study-dashboard__empty">
                   <GraduationCap size={28} />
                   <div>
-                    <h3>Chua co project nao de theo doi</h3>
+                    <h3>Chưa có dự án nào để theo dõi</h3>
                     <p>
-                      Khi ban co project, bai tap, submission hoac ket qua tu danh gia, dashboard
-                      nay se tu dong tong hop de hien thi tien do hoc tap.
+                      Khi bạn có dự án, bài tập, lượt nộp hoặc kết quả tự đánh giá, bảng điều khiển
+                      này sẽ tự động tổng hợp để hiển thị tiến độ học tập.
                     </p>
                   </div>
                 </div>
@@ -511,11 +511,11 @@ export function DashboardPage() {
                             <div className="study-dashboard__project-meta">
                               <span className="study-dashboard__pill study-dashboard__pill--neutral">
                                 <FolderKanban size={14} />
-                                Project
+                                Dự án
                               </span>
                               <span className="study-dashboard__pill study-dashboard__pill--neutral">
                                 <UserRound size={14} />
-                                {project.is_owner ? 'So huu' : 'Dang tham gia'}
+                                {project.is_owner ? 'Sở hữu' : 'Đang tham gia'}
                               </span>
                             </div>
                             <Link to={`/projects/${project.id}`} className="study-dashboard__project-link">
@@ -523,7 +523,7 @@ export function DashboardPage() {
                               <p>
                                 {project.description?.trim()
                                   ? project.description
-                                  : 'Project chua co mo ta. Dashboard van theo doi assignment, submission va ket qua tu danh gia cua ban.'}
+                                  : 'Dự án chưa có mô tả. Bảng điều khiển vẫn theo dõi bài tập, lượt nộp và kết quả đánh giá của bạn.'}
                               </p>
                             </Link>
                           </div>
@@ -533,7 +533,7 @@ export function DashboardPage() {
                             <strong>
                               {project.latest_assessment?.total_score != null
                                 ? `${Math.round(project.latest_assessment.total_score)}/100`
-                                : 'Chua co diem'}
+                                : 'Chưa có điểm'}
                             </strong>
                           </div>
                         </div>
@@ -542,8 +542,8 @@ export function DashboardPage() {
                           <section className="study-dashboard__project-panel">
                             <div className="study-dashboard__panel-headline">
                               <div>
-                                <span className="study-dashboard__section-kicker">Tien do hoc</span>
-                                <h4>{project.progress_percentage}% hoan thanh</h4>
+                                <span className="study-dashboard__section-kicker">Tiến độ học</span>
+                                <h4>{project.progress_percentage}% hoàn thành</h4>
                               </div>
                               <Target size={18} />
                             </div>
@@ -558,19 +558,19 @@ export function DashboardPage() {
                             <div className="study-dashboard__stats-row">
                               <div className="study-dashboard__mini-stat">
                                 <strong>{project.assignments_completed}</strong>
-                                <span>Bai da nop</span>
+                                <span>Bài đã nộp</span>
                               </div>
                               <div className="study-dashboard__mini-stat">
                                 <strong>{project.assignments_pending}</strong>
-                                <span>Bai con lai</span>
+                                <span>Bài còn lại</span>
                               </div>
                               <div className="study-dashboard__mini-stat">
                                 <strong>{project.materials_count}</strong>
-                                <span>Tai lieu</span>
+                                <span>Tài liệu</span>
                               </div>
                               <div className="study-dashboard__mini-stat">
                                 <strong>{project.submissions_total}</strong>
-                                <span>Luot nop</span>
+                                <span>Lượt nộp</span>
                               </div>
                             </div>
                           </section>
@@ -578,7 +578,7 @@ export function DashboardPage() {
                           <section className="study-dashboard__project-panel">
                             <div className="study-dashboard__panel-headline">
                               <div>
-                                <span className="study-dashboard__section-kicker">Tu danh gia</span>
+                                <span className="study-dashboard__section-kicker">Tự đánh giá</span>
                                 <h4>{readinessMeta.description}</h4>
                               </div>
                               <Brain size={18} />
@@ -587,14 +587,14 @@ export function DashboardPage() {
                             <div className="study-dashboard__assessment-meta">
                               <span>
                                 <Clock3 size={15} />
-                                Cap nhat: {formatDateTime(project.latest_assessment?.created_at)}
+                                Cập nhật: {formatDateTime(project.latest_assessment?.created_at)}
                               </span>
                             </div>
 
                             <div className="study-dashboard__insight-block">
                               <p>
                                 {project.latest_assessment?.analysis_text ??
-                                  'Chua co nhan dinh AI cho project nay. Nen thuc hien bai tu danh gia de lay muc do san sang.'}
+                                  'Chưa có nhận định cho dự án này. Cần thực hiện bài tự đánh giá để lấy mức độ sẵn sàng.'}
                               </p>
                             </div>
 
@@ -610,7 +610,7 @@ export function DashboardPage() {
                         <div className="study-dashboard__next-step">
                           <Sparkles size={18} />
                           <div>
-                            <strong>Buoc uu tien tiep theo</strong>
+                            <strong>Bước ưu tiên tiếp theo</strong>
                             <p>{project.next_action}</p>
                           </div>
                         </div>
@@ -626,15 +626,15 @@ export function DashboardPage() {
             <section className="study-dashboard__section-card">
               <div className="study-dashboard__section-head">
                 <div>
-                  <span className="study-dashboard__section-kicker">Create project</span>
-                  <h2>Tao project moi</h2>
+                  <span className="study-dashboard__section-kicker">Tạo dự án</span>
+                  <h2>Tạo dự án mới</h2>
                 </div>
                 <Plus size={20} />
               </div>
 
               <p className="study-dashboard__section-copy">
-                Khi ban bat dau mot huong hoc moi hoac mot de tai moi, tao project tai day de
-                sau do gan bai tap, tu danh gia va theo doi tien do tren dashboard.
+                Khi bạn bắt đầu một hướng học mới hoặc một đề tài mới, tạo dự án tại đây để
+                sau đó gắn bài tập, tự đánh giá và theo dõi tiến độ trên bảng điều khiển.
               </p>
 
               {createProjectStatus ? (
@@ -654,23 +654,23 @@ export function DashboardPage() {
               {isCreateOpen ? (
                 <div className="study-dashboard__create-form">
                   <div className="study-dashboard__field">
-                    <label htmlFor="project-name">Ten project</label>
+                    <label htmlFor="project-name">Tên dự án</label>
                     <input
                       id="project-name"
                       type="text"
                       value={projectName}
                       onChange={(event) => setProjectName(event.target.value)}
-                      placeholder="Vi du: AI Readiness - Ky nang tu hoc"
+                      placeholder="Ví dụ: Kỹ năng tự học"
                     />
                   </div>
 
                   <div className="study-dashboard__field">
-                    <label htmlFor="project-description">Mo ta ngan</label>
+                    <label htmlFor="project-description">Mô tả ngắn</label>
                     <textarea
                       id="project-description"
                       value={projectDescription}
                       onChange={(event) => setProjectDescription(event.target.value)}
-                      placeholder="Mo ta muc tieu, noi dung hoc, hoac nhom ky nang ban muon theo doi."
+                      placeholder="Mô tả mục tiêu, nội dung học, hoặc nhóm kỹ năng bạn muốn theo dõi."
                       rows={4}
                     />
                   </div>
@@ -683,7 +683,7 @@ export function DashboardPage() {
                       disabled={isCreatingProject}
                     >
                       <Plus size={18} />
-                      {isCreatingProject ? 'Dang tao...' : 'Xac nhan tao project'}
+                      {isCreatingProject ? 'Đang tạo...' : 'Xác nhận tạo dự án'}
                     </button>
                     <button
                       className="study-dashboard__ghost-link study-dashboard__ghost-link--button"
@@ -694,7 +694,7 @@ export function DashboardPage() {
                       }}
                       disabled={isCreatingProject}
                     >
-                      Huy
+                      Hủy
                     </button>
                   </div>
                 </div>
@@ -709,7 +709,7 @@ export function DashboardPage() {
                   }}
                 >
                   <Plus size={18} />
-                  Mo form tao project
+                  Mở biểu mẫu tạo dự án
                 </button>
               )}
             </section>
@@ -720,15 +720,15 @@ export function DashboardPage() {
                   <span className="study-dashboard__section-kicker study-dashboard__section-kicker--light">
                     Priorities
                   </span>
-                  <h2>Nhung viec nen xu ly truoc</h2>
+                  <h2>Những việc nên xử lý trước</h2>
                 </div>
-                <Sparkles size={20} />
+
               </div>
 
               {topPriorities.length === 0 ? (
                 <div className="study-dashboard__empty-inline study-dashboard__empty-inline--light">
                   <CheckCircle2 size={18} />
-                  <span>Chua co uu tien nao noi bat. Dashboard se cap nhat khi co du lieu moi.</span>
+                  <span>Chưa có ưu tiên nào nổi bật. Bảng điều khiển sẽ cập nhật khi có dữ liệu mới.</span>
                 </div>
               ) : (
                 <div className="study-dashboard__priority-list">
@@ -739,7 +739,7 @@ export function DashboardPage() {
                         <strong>
                           {project.latest_assessment
                             ? getReadinessMeta(project.latest_assessment.readiness_level).label
-                            : 'Can tu danh gia'}
+                            : 'Cần tự đánh giá'}
                         </strong>
                         <p>{project.next_action}</p>
                       </div>
@@ -753,32 +753,32 @@ export function DashboardPage() {
             <section className="study-dashboard__section-card">
               <div className="study-dashboard__section-head">
                 <div>
-                  <span className="study-dashboard__section-kicker">How to read</span>
-                  <h2>Dashboard nay cho ban biet gi</h2>
+                  <span className="study-dashboard__section-kicker">Cách đọc</span>
+                  <h2>Bảng điều khiển này cho bạn biết gì</h2>
                 </div>
-                <Brain size={20} />
+
               </div>
 
               <div className="study-dashboard__info-list">
                 <article className="study-dashboard__info-item">
                   <TrendingUp size={18} />
                   <div>
-                    <strong>Tien do hoc</strong>
-                    <p>Duoc tinh tu so bai tap da nop tren tong assignment cua tung project.</p>
+                    <strong>Tiến độ học</strong>
+                    <p>Được tính từ số bài tập đã nộp trên tổng bài tập của từng dự án.</p>
                   </div>
                 </article>
                 <article className="study-dashboard__info-item">
                   <Brain size={18} />
                   <div>
-                    <strong>Readiness assessment</strong>
-                    <p>Cho biet muc do san sang hoc tap va thuc hien project tai thoi diem hien tai.</p>
+                    <strong>Tự đánh giá mức độ sẵn sàng</strong>
+                    <p>Cho biết mức độ sẵn sàng học tập và thực hiện dự án tại thời điểm hiện tại.</p>
                   </div>
                 </article>
                 <article className="study-dashboard__info-item">
                   <Sparkles size={18} />
                   <div>
-                    <strong>Goi y AI</strong>
-                    <p>Tom tat diem can uu tien de ban biet nen hoc tiep theo huong nao.</p>
+                    <strong>Gợi ý học tập</strong>
+                    <p>Tóm tắt điểm cần ưu tiên để bạn biết nên học tiếp theo hướng nào.</p>
                   </div>
                 </article>
               </div>

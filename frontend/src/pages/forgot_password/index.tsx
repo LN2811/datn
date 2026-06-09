@@ -31,18 +31,18 @@ const getMessage = (error: unknown): string => {
     return error.message;
   }
 
-  return 'Yeu cau that bai. Vui long thu lai.';
+  return 'Yêu cầu thất bại. Vui lòng thử lại.';
 };
 
 const validateEmail = (email: string): string | null => {
   const normalizedEmail = email.trim();
 
   if (!normalizedEmail) {
-    return 'Vui long nhap email.';
+    return 'Vui lòng nhập email.';
   }
 
   if (!emailRegex.test(normalizedEmail)) {
-    return 'Email khong dung dinh dang.';
+    return 'Email không đúng định dạng.';
   }
 
   return null;
@@ -54,7 +54,7 @@ const validatePassword = (password: string, confirmPassword: string): string | n
   }
 
   if (password !== confirmPassword) {
-    return 'Mat khau xac nhan khong khop.';
+    return 'Mật khẩu xác nhận không khớp.';
   }
 
   return null;
@@ -92,7 +92,7 @@ export default function ForgotPasswordPage() {
     try {
       const response = await api.post('/auth/forgot-password', { email: email.trim() });
       const payload = response.data as { message?: string; reset_link?: string } | undefined;
-      setSuccess(payload?.message ?? 'Neu email ton tai, he thong da gui link dat lai mat khau.');
+      setSuccess(payload?.message ?? 'Nếu email tồn tại, hệ thống đã gửi liên kết đặt lại mật khẩu.');
       setResetLink(payload?.reset_link ?? '');
     } catch (requestError) {
       setError(getMessage(requestError));
@@ -116,7 +116,7 @@ export default function ForgotPasswordPage() {
     try {
       const response = await api.post('/auth/reset-password', { token, password });
       const payload = response.data as { message?: string } | undefined;
-      setSuccess(payload?.message ?? 'Dat lai mat khau thanh cong. Dang quay ve trang dang nhap...');
+      setSuccess(payload?.message ?? 'Đặt lại mật khẩu thành công. Đang quay về trang đăng nhập...');
       window.setTimeout(() => {
         navigate('/login', { replace: true });
       }, 1200);
@@ -143,12 +143,12 @@ export default function ForgotPasswordPage() {
               {isResetMode ? 'Account recovery' : 'Password support'}
             </span>
             <h1 className="forgot-password-page__hero-title">
-              {isResetMode ? 'Tao mat khau moi va quay lai he thong.' : 'Khoi phuc tai khoan trong vai buoc.'}
+              {isResetMode ? 'Tạo mật khẩu mới.' : 'Khôi phục tài khoản trong vài bước.'}
             </h1>
             <p className="forgot-password-page__text forgot-password-page__text--hero">
               {isResetMode
-                ? 'Link reset da xac thuc token. Ban chi can nhap mat khau moi va dang nhap lai.'
-                : 'Nhap email da dang ky. He thong se tao link reset de ban dat lai mat khau nhanh hon.'}
+                ? 'Link reset đã xác thực token. Bạn chỉ cần nhập mật khẩu mới và đăng nhập lại.'
+                : 'Nhập email đã đăng ký. Hệ thống sẽ tạo link reset để bạn đặt lại mật khẩu nhanh hơn.'}
             </p>
           </div>
 
@@ -162,8 +162,8 @@ export default function ForgotPasswordPage() {
                 <MailCheck size={20} />
               </div>
               <div>
-                <h2>Nhap email</h2>
-                <p>Xac dinh tai khoan can khoi phuc ma khong de lo thong tin nguoi dung.</p>
+                <h2>Nhập email</h2>
+                <p>Xác định tài khoản cần khôi phục mà không cần lo lắng về thông tin người dùng.</p>
               </div>
             </article>
 
@@ -172,8 +172,8 @@ export default function ForgotPasswordPage() {
                 <ShieldCheck size={20} />
               </div>
               <div>
-                <h2>Link reset an toan</h2>
-                <p>Backend tao token reset rieng va chi chap nhan token hop le.</p>
+                <h2>Link reset an toàn</h2>
+                <p>Backend tào token reset riêng và chỉ chấp nhận token hợp lệ.</p>
               </div>
             </article>
 
@@ -182,8 +182,8 @@ export default function ForgotPasswordPage() {
                 <Sparkles size={20} />
               </div>
               <div>
-                <h2>Quay lai dang nhap ngay</h2>
-                <p>Sau khi cap nhat mat khau, trang se tu dong dua ban ve khu dang nhap.</p>
+                <h2>Quay lại đăng nhập ngay</h2>
+                <p>Sau khi cập nhật mật khẩu, trang sẽ tự động đưa bạn về khu vực đăng nhập.</p>
               </div>
             </article>
           </div>
@@ -193,7 +193,7 @@ export default function ForgotPasswordPage() {
           <div className="forgot-password-page__card-head">
             <Link className="forgot-password-page__back" to="/login">
               <ArrowRight size={16} />
-              Quay ve dang nhap
+              Quay về đăng nhập
             </Link>
 
             <div className="forgot-password-page__lock">
@@ -205,12 +205,12 @@ export default function ForgotPasswordPage() {
             {isResetMode ? 'Reset access' : 'Forgot password'}
           </span>
           <h2 className="forgot-password-page__title">
-            {isResetMode ? 'Dat lai mat khau' : 'Quen mat khau'}
+            {isResetMode ? 'Đặt lại mật khẩu' : 'Quên mật khẩu'}
           </h2>
           <p className="forgot-password-page__text">
             {isResetMode
-              ? 'Nhap mat khau moi co do dai toi thieu 8 ky tu de kich hoat lai tai khoan.'
-              : 'Form nay goi API `/auth/forgot-password`. O local, ban se nhan duoc reset link de test ngay.'}
+              ? 'Nhập mật khẩu mới có độ dài tối thiểu 8 ký tự để kích hoạt lại tài khoản.'
+              : 'Ở local, bạn sẽ nhận được link reset để test ngay.'}
           </p>
 
           <form
@@ -232,7 +232,7 @@ export default function ForgotPasswordPage() {
             ) : (
               <>
                 <label className="forgot-password-page__field" htmlFor="password">
-                  <span>Mat khau moi</span>
+                  <span>Mật khẩu mới</span>
                   <div className="forgot-password-page__input-shell">
                     <input
                       id="password"
@@ -246,7 +246,7 @@ export default function ForgotPasswordPage() {
                       type="button"
                       className="forgot-password-page__toggle"
                       onClick={() => setShowPassword((value) => !value)}
-                      aria-label={showPassword ? 'An mat khau moi' : 'Hien mat khau moi'}
+                      aria-label={showPassword ? 'Ẩn mật khẩu mới' : 'Hiện mật khẩu mới'}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -254,7 +254,7 @@ export default function ForgotPasswordPage() {
                 </label>
 
                 <label className="forgot-password-page__field" htmlFor="confirmPassword">
-                  <span>Xac nhan mat khau</span>
+                  <span>Xác nhận mật khẩu</span>
                   <div className="forgot-password-page__input-shell">
                     <input
                       id="confirmPassword"
@@ -262,13 +262,13 @@ export default function ForgotPasswordPage() {
                       autoComplete="new-password"
                       value={confirmPassword}
                       onChange={(event) => setConfirmPassword(event.target.value)}
-                      placeholder="Nhap lai mat khau moi"
+                      placeholder="Nhập lại mật khẩu mới"
                     />
                     <button
                       type="button"
                       className="forgot-password-page__toggle"
                       onClick={() => setShowConfirmPassword((value) => !value)}
-                      aria-label={showConfirmPassword ? 'An xac nhan mat khau' : 'Hien xac nhan mat khau'}
+                      aria-label={showConfirmPassword ? 'Ẩn xác nhận mật khẩu' : 'Hiện xác nhận mật khẩu'}
                     >
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
@@ -293,17 +293,17 @@ export default function ForgotPasswordPage() {
 
             <button className="forgot-password-page__submit" type="submit" disabled={isSubmitting}>
               {isSubmitting
-                ? 'Dang xu ly...'
+                ? 'Đang xử lý...'
                 : isResetMode
-                  ? 'Cap nhat mat khau'
-                  : 'Gui link dat lai mat khau'}
+                  ? 'Cập nhật mật khẩu'
+                  : 'Gửi link đặt lại mật khẩu'}
             </button>
           </form>
 
           <p className="forgot-password-page__helper">
             {isResetMode
-              ? 'Neu token het han, quay lai buoc truoc de tao link reset moi.'
-              : 'Neu ban da nho lai mat khau, co the quay lai trang dang nhap ngay.'}
+              ? 'Nếu token hết hạn, quay lại bước trước để tạo link reset mới.'
+              : 'Nếu bạn đã nhớ lại mật khẩu, có thể quay lại trang đăng nhập ngay.'}
           </p>
         </section>
       </section>

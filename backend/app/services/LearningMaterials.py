@@ -68,6 +68,10 @@ class LearningMaterialService:
             MaterialChunkService(self.session).save_material_chunk(
                 material_id=material.id,
             )
+        except HTTPException:
+            self.session.delete(material)
+            self.session.commit()
+            raise
         except Exception as exc:
             logger.warning(
                 "Failed to create material chunks. material_id=%s error_type=%s error=%s",

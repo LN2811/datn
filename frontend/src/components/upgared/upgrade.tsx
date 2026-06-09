@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/api/axios";
 import "./upgrade.css";
-import { X } from 'lucide-react';
+import { X } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 type PricingPlanFromApi = {
@@ -25,13 +25,12 @@ type PricingPlanCard = {
   priceText: string;
   description: string;
   highlighted?: boolean;
-  current?: boolean;
   features: string[];
 };
 
 function formatPrice(price: number) {
   if (price <= 0) {
-    return "Free";
+    return "Miễn phí";
   }
 
   return new Intl.NumberFormat("vi-VN", {
@@ -43,25 +42,26 @@ function formatPrice(price: number) {
 
 function mapPlanToCard(plan: PricingPlanFromApi): PricingPlanCard {
   const name = plan.name.toLowerCase();
+  const title = plan.name
+    .replace(/chatgpt/gi, "Gói nâng cao")
+    .replace(/codex/gi, "Gói nâng cao");
 
   return {
     id: plan.id,
-    title: plan.name.includes("Business") ? "Business" : plan.name,
-    subtitle: plan.name.includes("ChatGPT")
-      ? "ChatGPT & Codex"
-      : plan.name.includes("Codex")
-        ? "Codex"
-        : undefined,
+    title: plan.name.includes("Business") ? "Doanh nghiệp" : title,
+    subtitle: name.includes("nang-cao") || name.includes("premium")
+      ? "Gói nâng cao"
+      : undefined,
     priceText: formatPrice(plan.price),
-    description: plan.description || "Gói dịch vụ học tập với AI.",
-    highlighted: name.includes("chatgpt") || name.includes("business"),
+    description: plan.description || "Gói dịch vụ học tập nâng cao.",
+    highlighted: name.includes("premium") || name.includes("business"),
     features: [
       plan.ai_usage_limit
-        ? `${plan.ai_usage_limit} lượt sử dụng AI`
+        ? `${plan.ai_usage_limit} lượt xử lý học tập`
         : "Không giới hạn theo cấu hình gói",
       plan.max_projects
-        ? `Tối đa ${plan.max_projects} project`
-        : "Không giới hạn project theo cấu hình gói",
+        ? `Tối đa ${plan.max_projects} dự án`
+        : "Không giới hạn dự án theo cấu hình gói",
       "Hỗ trợ tạo bài học từ tài liệu",
       "Hỗ trợ tạo câu hỏi và chấm điểm",
     ],
@@ -104,7 +104,7 @@ export default function UpgradePlanPage() {
       }
     };
 
-    fetchPlans();
+    void fetchPlans();
   }, []);
 
   const handleSelectPlan = (plan: PricingPlanCard) => {
@@ -128,10 +128,10 @@ export default function UpgradePlanPage() {
           <h1 className="upgrade-title">Nâng cấp gói dịch vụ</h1>
         </header>
 
-        {loading && <p className="upgrade-status">Đang tải gói dịch vụ...</p>}
-        {error && <p className="upgrade-error">{error}</p>}
-        {success && <p className="upgrade-success">{success}</p>}
-        {!loading && plans.length > 0 && (
+        {loading ? <p className="upgrade-status">Đang tải gói dịch vụ...</p> : null}
+        {error ? <p className="upgrade-error">{error}</p> : null}
+        {success ? <p className="upgrade-success">{success}</p> : null}
+        {!loading && plans.length > 0 ? (
           <section className="upgrade-grid">
             {plans.map((plan) => {
               const isCurrent = plan.id === currentPlanId;
@@ -149,9 +149,9 @@ export default function UpgradePlanPage() {
                   <div className="pricing-card__top">
                     <h2 className="pricing-card__title">{plan.title}</h2>
 
-                    {plan.subtitle && (
+                    {plan.subtitle ? (
                       <p className="pricing-card__subtitle">{plan.subtitle}</p>
-                    )}
+                    ) : null}
 
                     <div className="pricing-card__price">{plan.priceText}</div>
 
@@ -176,7 +176,7 @@ export default function UpgradePlanPage() {
                   <ul className="pricing-card__features">
                     {plan.features.map((feature) => (
                       <li key={feature} className="pricing-card__feature">
-                        <span>✦</span>
+                        <span>*</span>
                         <span>{feature}</span>
                       </li>
                     ))}
@@ -185,7 +185,7 @@ export default function UpgradePlanPage() {
               );
             })}
           </section>
-        )}
+        ) : null}
       </div>
     </div>
   );

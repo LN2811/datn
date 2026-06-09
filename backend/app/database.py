@@ -23,8 +23,6 @@ DATABASE_URL = (
     f"{POSTGRES_DB}"
 )
 
-print("DATABASE_URL =", DATABASE_URL)  # debug tạm
-
 engine = create_async_engine(
     DATABASE_URL,
     echo=True,

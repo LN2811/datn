@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import {
   ArrowRight,
   CircleAlert,
+  Github,
   GraduationCap,
   LayoutDashboard,
   Upload,
@@ -107,7 +108,7 @@ export default function Project() {
         setProject(null);
         setLessons([]);
         setDocuments([]);
-        setError("Khong the tai du lieu du an.");
+        setError("Không thể tải dữ liệu dự án.");
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -122,7 +123,7 @@ export default function Project() {
     };
   }, [projectId]);
 
-  const handleGenerateLessons = async () => {
+  const generateLessonsFromMaterials = async (successMessage?: string) => {
     if (!projectId || generatingLessons) {
       return;
     }
@@ -138,12 +139,35 @@ export default function Project() {
       const refreshedLessons = await fetchLessons(projectId);
       setLessons(refreshedLessons);
       setNotice(
-        `Da tao bai hoc tu tai lieu va ${generationResponse.data.questions_count ?? 0} cau hoi.`,
+        successMessage ??
+          `Đã tạo bài học từ tài liệu và ${generationResponse.data.questions_count ?? 0} câu hỏi.`,
       );
     } catch {
-      setError("Khong the tao bai hoc tu tai lieu.");
+      setError("Không thể tạo bài học từ tài liệu.");
     } finally {
       setGeneratingLessons(false);
+    }
+  };
+
+  const handleGenerateLessons = async () => {
+    await generateLessonsFromMaterials();
+  };
+
+  const handleUploadMaterialSuccess = async () => {
+    if (!projectId) {
+      return;
+    }
+
+    setOpen(false);
+    setError(null);
+    setNotice("Đã tải tài liệu lên. Đang cập nhật bài học...");
+
+    try {
+      const refreshedDocuments = await fetchDocuments(projectId);
+      setDocuments(refreshedDocuments);
+      await generateLessonsFromMaterials("Đã tải tài liệu lên và cập nhật bài học từ tài liệu mới.");
+    } catch {
+      setError("Không thể tải lại danh sách tài liệu.");
     }
   };
   const handledeletedocument = async (documentId: string) => {
@@ -157,7 +181,7 @@ export default function Project() {
         prev.filter((document) => document.id !== documentId),
       );
     } catch {
-      setError("Failed to delete material.");
+      setError("Không thể xóa tài liệu.");
     }
   };
 
@@ -178,21 +202,22 @@ export default function Project() {
     return `${uploadsBaseUrl}/uploads/${fileName}`;
   };
 
-  const title = project?.name ?? "Du an";
+  const title = project?.name ?? "Dự án";
   const description = loading
-    ? "Dang tai du an..."
+    ? "Đang tải dự án..."
     : error ?? project?.description ?? "";
+  const firstLesson = lessons[0] ?? null;
 
   const getLessonStatusLabel = (status?: string | null) => {
     switch (status) {
       case "ready":
-        return "San sang";
+        return "Sẵn sàng";
       case "generating":
-        return "Dang tao";
+        return "Đang tạo";
       case "failed":
-        return "Loi";
+        return "Lỗi";
       default:
-        return "Cho tao";
+        return "Chờ tạo";
     }
   };
 
@@ -226,6 +251,24 @@ export default function Project() {
             </div>
 
             <div className="project-header__actions">
+              {firstLesson ? (
+                <Link
+                  to={`/lession/${firstLesson.id}/code_review`}
+                  className="project-lesson__link project-lesson__link--github"
+                >
+                  <Github size={16} />
+                  Nộp GitHub
+                </Link>
+              ) : (
+                <button
+                  className="project-lesson__link project-lesson__link--github"
+                  type="button"
+                  disabled
+                >
+                  <Github size={16} />
+                  Nộp GitHub
+                </button>
+              )}
               <button
                 className="study-dashboard__ghost-link"
                 type="button"
@@ -233,21 +276,23 @@ export default function Project() {
                 disabled={loading || generatingLessons}
               >
                 <LayoutDashboard size={18} />
-                {generatingLessons ? "Dang tao..." : "Tao bai hoc tu tai lieu"}
+                {generatingLessons ? "Đang tạo..." : "Tạo bài học từ tài liệu"}
               </button>
 
               <button
-                className="study-dashboard__ghost-link"
+                className="study-dashboard__ghost-link project-header__upload-button"
                 type="button"
-                aria-label="Upload project"
+                aria-label="Tải tài liệu lên"
                 onClick={() => setOpen(true)}
+                disabled={loading || !projectId}
               >
                 <Upload size={18} />
+                Tải tài liệu
               </button>
 
               <Link className="study-dashboard__ghost-link" to="/">
                 <ArrowRight size={18} />
-                Trang Home
+                Trang chủ
               </Link>
             </div>
           </header>
@@ -256,7 +301,7 @@ export default function Project() {
             <div>
               <section className="project-section">
                 <div className="header-section">
-                  <h2>Thong tin cac bai hoc</h2>
+                  <h2>Thông tin các bài học</h2>
                   <LayoutDashboard size={18} />
                 </div>
 
@@ -287,20 +332,16 @@ export default function Project() {
                 ) : lessons.length === 0 ? (
                   <div className="project-empty">
                     <GraduationCap size={18} />
-                    <span>Khong co bai hoc nao trong du an.</span>
+                    <span>Không có bài học nào trong dự án.</span>
                   </div>
                 ) : (
                   <div className="project-section__list">
                     {lessons.map((lesson) => (
-                      <Link
-                        key={lesson.id}
-                        to={`/lession/${lesson.id}`}
-                        className="project-section__item"
-                      >
+                      <article key={lesson.id} className="project-section__item">
                         <div className="project-section__item-header">
                           <div className="project-lesson__header">
                             <div>
-                              <h3 style={{marginBlockStart: "0px"}}>{lesson.title ?? lesson.name ?? "Lesson"}</h3>
+                              <h3 style={{marginBlockStart: "0px"}}>{lesson.title ?? lesson.name ?? "Bài học"}</h3>
                               <div className="project-lesson__badges">
                                 <span
                                   className={`project-lesson__badge ${getLessonStatusClass(
@@ -312,14 +353,23 @@ export default function Project() {
 
                                 {lesson.is_preview ? (
                                   <span className="project-lesson__badge project-lesson__badge--preview">
-                                    Preview
+                                    Bản xem trước
                                   </span>
                                 ) : null}
                               </div>
                             </div>
+                            <div className="project-lesson__actions">
+                              <Link
+                                to={`/lession/${lesson.id}`}
+                                className="project-lesson__link"
+                              >
+                                <ArrowRight size={16} />
+                                Bài học
+                              </Link>
+                            </div>
                           </div>
                         </div>
-                      </Link>
+                      </article>
                     ))}
                   </div>
                 )}
@@ -329,7 +379,7 @@ export default function Project() {
             <aside className="project-aside">
               <section className="project-section--aside">
                 <div>
-                  <h2>Thong tin tai lieu</h2>
+                  <h2>Thông tin tài liệu</h2>
                 </div>
 
                 {loading ? (
@@ -347,7 +397,7 @@ export default function Project() {
                 ) : documents.length === 0 ? (
                   <div className="project-empty">
                     <GraduationCap size={18} />
-                    <span>Khong co tai lieu nao trong du an.</span>
+                    <span>Không có tài liệu nào trong dự án.</span>
                   </div>
                 ) : (
                   <div className="project-section__list">
@@ -364,9 +414,9 @@ export default function Project() {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              Xem tai lieu
+                              Xem tài liệu
                             </a>
-                            <button type="button" title="Xoa tai lieu" className="delete-button" onClick={() => void handledeletedocument(document.id)}>
+                            <button type="button" title="Xóa tài liệu" className="delete-button" onClick={() => void handledeletedocument(document.id)}>
                               <Trash size={16} />
                             </button>
                           </div>
@@ -386,17 +436,7 @@ export default function Project() {
         onClose={() => setOpen(false)}
         projectId={projectId ?? ""}
         onUploadSuccess={() => {
-          if (!projectId) {
-            return;
-          }
-
-          void fetchDocuments(projectId)
-            .then((data) => setDocuments(data))
-            .catch(() => setError("Failed to refresh documents."));
-
-          void fetchLessons(projectId)
-            .then((data) => setLessons(data))
-            .catch(() => setError("Failed to refresh lessons."));
+          void handleUploadMaterialSuccess();
         }}
       />
     </>

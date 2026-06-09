@@ -65,7 +65,6 @@ def delete_module(
 @router.post("/module/{module_id}/ensure-ready", response_model=CurriculumModulePublic)
 def ensure_module_ready(
     module_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
     session: SessionDep,
     current_user: Users = Depends(Authen.get_current_user),
 ):
@@ -79,12 +78,6 @@ def ensure_module_ready(
             session=session,
             module_id=module_id,
         )
-    background_tasks.add_task(
-        service.prefetch_next_modules_background,
-        module_id=module_id,
-        limit=2,
-        user_id=current_user.id,
-    )
     return module
 
 

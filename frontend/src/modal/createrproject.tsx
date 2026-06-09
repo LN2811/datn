@@ -47,12 +47,12 @@ export default function CreateProjectModal({ open, onClose, onSuccess }: Props) 
     const description = projectDescription.trim();
 
     if (!name) {
-      setError("Vui long nhap ten project.");
+      setError("Vui lòng nhập tên dự án.");
       return;
     }
 
     if (name.length < 3) {
-      setError("Ten project can it nhat 3 ky tu.");
+      setError("Tên dự án cần ít nhất 3 ký tự.");
       return;
     }
 
@@ -69,7 +69,7 @@ export default function CreateProjectModal({ open, onClose, onSuccess }: Props) 
       onClose();
       await onSuccess?.(response.data);
     } catch {
-      setError("Tao project that bai.");
+      setError("Tạo dự án thất bại.");
     } finally {
       setLoading(false);
     }
@@ -86,15 +86,15 @@ export default function CreateProjectModal({ open, onClose, onSuccess }: Props) 
       >
         <div className="create-project-modal__header">
           <div>
-            <span>Create project</span>
-            <h2 id="create-project-title">Tao Project</h2>
+            <span>Tạo dự án</span>
+            <h2 id="create-project-title">Tạo dự án</h2>
           </div>
           <button
             className="create-project-modal__close"
             type="button"
             onClick={handleClose}
             disabled={loading}
-            aria-label="Dong modal tao project"
+            aria-label="Đóng cửa sổ tạo dự án"
           >
             x
           </button>
@@ -103,9 +103,9 @@ export default function CreateProjectModal({ open, onClose, onSuccess }: Props) 
         {error ? <p className="create-project-modal__error">{error}</p> : null}
 
         <label className="create-project-modal__field">
-          <span>Ten project</span>
+          <span>Tên dự án</span>
           <input
-            placeholder="Vi du: AI Readiness"
+            placeholder="Ví dụ: Kỹ năng tự học"
             value={projectName}
             onChange={(event) => setProjectName(event.target.value)}
             disabled={loading}
@@ -113,9 +113,9 @@ export default function CreateProjectModal({ open, onClose, onSuccess }: Props) 
         </label>
 
         <label className="create-project-modal__field">
-          <span>Mo ta</span>
+          <span>Mô tả</span>
           <textarea
-            placeholder="Mo ta muc tieu hoac noi dung hoc cua project."
+            placeholder="Mô tả mục tiêu hoặc nội dung học của dự án."
             value={projectDescription}
             onChange={(event) => setProjectDescription(event.target.value)}
             disabled={loading}
@@ -130,7 +130,7 @@ export default function CreateProjectModal({ open, onClose, onSuccess }: Props) 
             onClick={handleClose}
             disabled={loading}
           >
-            Huy
+            Hủy
           </button>
           <button
             className="create-project-modal__button create-project-modal__button--primary"
@@ -138,7 +138,7 @@ export default function CreateProjectModal({ open, onClose, onSuccess }: Props) 
             onClick={() => void handleCreate()}
             disabled={loading}
           >
-            {loading ? "Dang tao..." : "Tao project"}
+            {loading ? "Đang tạo..." : "Tạo dự án"}
           </button>
         </div>
       </div>

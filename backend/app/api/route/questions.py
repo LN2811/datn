@@ -58,6 +58,7 @@ def get_assignment_quiz(
         return QuestionService().get_assignment_quiz(
             session=session,
             assignment_id=assignment_id,
+            user_id=current_user.id,
         )
 
 
@@ -94,6 +95,7 @@ def get_module_quiz(
         return QuestionService().get_module_quiz(
             session=session,
             module_id=module_id,
+            user_id=current_user.id,
         )
 
 
@@ -139,4 +141,5 @@ def create_question(
             criteria_id=question_in.criteria_id,
             content=question_in.content,
             generated_by=question_in.generated_by,
+            user_id=current_user.id,
         )

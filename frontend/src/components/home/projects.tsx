@@ -61,12 +61,12 @@ type CreatedProject = {
 
 const formatDateTime = (value?: string | null) => {
   if (!value) {
-    return "Chua cap nhat";
+    return "Chưa cập nhật";
   }
 
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
-    return "Chua cap nhat";
+    return "Chưa cập nhật";
   }
 
   return parsed.toLocaleString("vi-VN", {
@@ -82,22 +82,22 @@ const getReadinessMeta = (level?: string | null) => {
   switch (level) {
     case "high":
       return {
-        label: "San sang cao",
+        label: "Sẵn sàng cao",
         tone: "high",
       };
     case "medium":
       return {
-        label: "San sang trung binh",
+        label: "Sẵn sàng trung bình",
         tone: "medium",
       };
     case "low":
       return {
-        label: "Can cuong co",
+        label: "Cần củng cố",
         tone: "low",
       };
     default:
       return {
-        label: "Chua danh gia",
+        label: "Chưa đánh giá",
         tone: "neutral",
       };
   }
@@ -142,7 +142,7 @@ export default function ProjectsPage() {
         }
         setProjects([]);
         setSummary(null);
-        setError("Khong the tai danh sach project.");
+        setError("Không thể tải danh sách dự án.");
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -164,7 +164,7 @@ export default function ProjectsPage() {
 
     const targetProject = projects.find((project) => project.id === projectId);
     const confirmed = window.confirm(
-      `Ban co chac chan muon xoa project "${targetProject?.name ?? "nay"}"?`,
+      `Bạn có chắc chắn muốn xóa dự án "${targetProject?.name ?? "này"}"?`,
     );
     if (!confirmed) {
       return;
@@ -177,16 +177,16 @@ export default function ProjectsPage() {
 
       await api.delete(`/projects/${projectId}`);
       await loadProjects();
-      setNotice("Da xoa project.");
+      setNotice("Đã xóa dự án.");
     } catch {
-      setError("Khong the xoa project nay.");
+      setError("Không thể xóa dự án này.");
     } finally {
       setDeletingProjectId(null);
     }
   };
 
   const handleCreateProjectSuccess = async (createdProject: CreatedProject) => {
-    setNotice("Da tao project.");
+    setNotice("Đã tạo dự án.");
     setError(null);
 
     if (createdProject.id) {
@@ -198,7 +198,7 @@ export default function ProjectsPage() {
       setLoading(true);
       await loadProjects();
     } catch {
-      setError("Da tao project, nhung khong the tai lai danh sach project.");
+      setError("Đã tạo dự án, nhưng không thể tải danh sách dự án.");
     } finally {
       setLoading(false);
     }
@@ -215,10 +215,10 @@ export default function ProjectsPage() {
           <header className="lession-header__title">
             <div className="lession-header__head">
               <div className="lession-header__copy">
-                <p className="lession-detail__eyebrow">Projects Workspace</p>
-                <h2 className="lession-header__heading">Tat ca project cua ban</h2>
+                <p className="lession-detail__eyebrow">Không gian dự án</p>
+                <h2 className="lession-header__heading">Tất cả project của bạn</h2>
                 <p className="lession-header__description">
-                  Day la noi hien thi toan bo project ma ban dang so huu hoac tham gia.
+                  Đây là nơi hiển thị toàn bộ project mà bạn đang sở hữu hoặc tham gia.
                 </p>
               </div>
             </div>
@@ -226,14 +226,14 @@ export default function ProjectsPage() {
             <div className="lession-header__button">
               <Link to="/dashboard" className="lession-header__button--add">
                 <ArrowLeft size={16} />
-                Dashboard
+                Bảng điều khiển
               </Link>
               <button
                 className="lession-header__button--add"
                 type="button"
                 onClick={() => setIsCreateProjectOpen(true)}
               >
-                Tao Project
+                Tạo dự án
               </button>
             </div>
           </header>
@@ -242,12 +242,12 @@ export default function ProjectsPage() {
             <section className="lession-section">
               <div className="lession-section__head">
                 <div>
-                  <h3>Danh sach project</h3>
+                  <h3>Danh sách project</h3>
                   <p className="lession-section__copy">
-                    Mo tung project de xem bai hoc, tai lieu, va thao tac AI lien quan.
+                    Mở từng dự án để xem bài học, tài liệu và thao tác học tập liên quan.
                   </p>
                 </div>
-                <FolderKanban size={20} />
+
               </div>
 
               {error ? (
@@ -267,12 +267,12 @@ export default function ProjectsPage() {
               {loading ? (
                 <div className="lession-detail__empty">
                   <Clock3 size={18} />
-                  <span>Dang tai danh sach project cua ban...</span>
+                  <span>Đang tải danh sách dự án...</span>
                 </div>
               ) : projects.length === 0 ? (
                 <div className="lession-detail__empty">
                   <Sparkles size={18} />
-                  <span>Ban chua co project nao de hien thi.</span>
+                  <span>Bạn chưa có project nào để hiển thị.</span>
                 </div>
               ) : (
                 <div className="lession-project__list">
@@ -288,11 +288,11 @@ export default function ProjectsPage() {
                             <div className="lession-project__meta">
                               <span className="lession-project__pill">
                                 <FolderKanban size={14} />
-                                Project
+                                Dự án
                               </span>
                               <span className="lession-project__pill">
                                 <UserRound size={14} />
-                                {project.is_owner ? "So huu" : "Dang tham gia"}
+                                {project.is_owner ? "Sở hữu" : "Đang tham gia"}
                               </span>
                               <span
                                 className={`lession-project__pill lession-project__pill--${readinessMeta.tone}`}
@@ -305,13 +305,13 @@ export default function ProjectsPage() {
                             <p>
                               {project.description?.trim()
                                 ? project.description
-                                : "Project chua co mo ta. Ban van co the mo project de xem tai lieu va bai hoc."}
+                                : "Dự án chưa có mô tả. Bạn vẫn có thể mở dự án để xem tài liệu và bài học."}
                             </p>
                           </div>
 
                           <div className="lession-project__actions">
                             <Link className="lession-project__link" to={`/projects/${project.id}`}>
-                              Mo project
+                              Mở project
                             </Link>
                             <button
                               type="button"
@@ -320,38 +320,38 @@ export default function ProjectsPage() {
                               disabled={deletingProjectId !== null || !project.is_owner}
                               title={
                                 project.is_owner
-                                  ? "Xoa project"
-                                  : "Chi chu so huu moi co the xoa project"
+                                  ? "Xóa project"
+                                  : "Chỉ chủ sở hữu mới có thể xóa project"
                               }
                             >
                               <Trash2 size={16} />
-                              {deletingProjectId === project.id ? "Dang xoa..." : "Xoa project"}
+                              {deletingProjectId === project.id ? "Đang xóa..." : "Xóa dự án"}
                             </button>
                           </div>
                         </div>
 
                         <div className="lession-project__stats">
                           <div className="lession-project__stat">
-                            <span>Bai tap</span>
+                            <span>Bài tập</span>
                             <strong>{project.assignments_total}</strong>
                           </div>
                           <div className="lession-project__stat">
-                            <span>Da nop</span>
+                            <span>Đã nộp</span>
                             <strong>{project.assignments_completed}</strong>
                           </div>
                           <div className="lession-project__stat">
-                            <span>Con lai</span>
+                            <span>Còn lại</span>
                             <strong>{project.assignments_pending}</strong>
                           </div>
                           <div className="lession-project__stat">
-                            <span>Tai lieu</span>
+                            <span>Tài liệu</span>
                             <strong>{project.materials_count}</strong>
                           </div>
                         </div>
 
                         <div className="lession-project__progress">
                           <div className="lession-project__progress-head">
-                            <span>Tien do hoan thanh</span>
+                            <span>Tiến độ hoàn thành</span>
                             <strong>{project.progress_percentage}%</strong>
                           </div>
                           <div className="lession-project__progress-track" aria-hidden="true">
@@ -376,39 +376,38 @@ export default function ProjectsPage() {
             <aside className="lession-section">
               <div className="lession-section__head">
                 <div>
-                  <h3>Tong quan nhanh</h3>
+                  <h3>Tổng quan nhanh</h3>
                   <p className="lession-section__copy">
-                    Tom tat toan bo project cua ban tren cung mot trang.
+                    Tóm tắt toàn bộ dự án của bạn trên cùng một trang.
                   </p>
                 </div>
-                <Sparkles size={20} />
               </div>
 
               <div className="lession-summary__grid">
                 <div className="lession-detail__meta-item">
-                  <span>Tong project</span>
+                  <span>Tổng dự án</span>
                   <strong>{summary?.total_projects ?? 0}</strong>
                 </div>
                 <div className="lession-detail__meta-item">
-                  <span>Tien do trung binh</span>
+                  <span>Tiến độ trung bình</span>
                   <strong>{summary?.average_progress ?? 0}%</strong>
                 </div>
                 <div className="lession-detail__meta-item">
-                  <span>Bai tap da nop</span>
+                  <span>Bài tập đã nộp</span>
                   <strong>
                     {summary?.submitted_assignments ?? 0}/{summary?.tracked_assignments ?? 0}
                   </strong>
                 </div>
                 <div className="lession-detail__meta-item">
-                  <span>Lan danh gia</span>
+                  <span>Lần đánh giá</span>
                   <strong>{summary?.assessments_completed ?? 0}</strong>
                 </div>
                 <div className="lession-detail__meta-item">
-                  <span>Can chu y</span>
-                  <strong>{summary?.attention_needed ?? 0} project</strong>
+                  <span>Cần chú ý</span>
+                  <strong>{summary?.attention_needed ?? 0} dự án</strong>
                 </div>
                 <div className="lession-detail__meta-item">
-                  <span>Hoat dong gan nhat</span>
+                  <span>Hoạt động gần nhất</span>
                   <strong>{formatDateTime(summary?.last_activity_at)}</strong>
                 </div>
               </div>

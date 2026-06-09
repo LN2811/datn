@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from fastapi import HTTPException
@@ -140,7 +140,61 @@ class AIUsageService:
         ).all()
 
         return {
-            "total_tokens": total_tokens or 0,
-            "total_cost": total_cost or 0,
-            "top_users": top_users,
+            "total_tokens": int(total_tokens or 0),
+            "total_cost": float(total_cost or 0),
+            "top_users": [
+                {
+                    "user_id": str(user_id),
+                    "total": int(total or 0),
+                }
+                for user_id, total in top_users
+            ],
+        }
+    
+    def  get_24h_usage(
+            self,
+            *,
+            session: Session,
+            user_id: uuid.UUID
+    ):
+        last_24h = datetime.utcnow() - timedelta(hours=24)
+        total = session.exec(
+            select(func.coalesce(func.sum(AIUsageLogs.tokens_used),0))
+            .where(AIUsageLogs.user_id == user_id)
+            .where(AIUsageLogs.created_at >= last_24h)
+        ).one()
+        return int(total or 0)
+    
+    def get_quota_status(
+        self,
+        *,
+        session: Session,
+        user_id: uuid.UUID,
+    ):
+        used_tokens = self.get_24h_usage(
+            session=session,
+            user_id=user_id
+        )
+
+        try:
+            subscription_data = UserSubscriptionService(session).check_subscription(
+                user_id=user_id
+            )
+            token_limit = subscription_data.get("ai_usage_limit")
+            plan_name = subscription_data.get("plan_name")
+        except HTTPException:
+            token_limit = 50000
+            plan_name = "Free"
+
+        remaining_tokens = (
+            None if token_limit is None
+            else max(token_limit - used_tokens, 0)
+        )
+
+        return {
+            "plan_name": plan_name,
+            "token_limit": token_limit,
+            "used_tokens": used_tokens,
+            "remaining_tokens": remaining_tokens,
+            "reset_after": "24h",
         }

@@ -6,6 +6,7 @@ import { api } from "@/api/axios";
 
 import "./lession.css";
 
+
 type LessonDetail = {
   id: string;
   curriculum_id: string;
@@ -17,14 +18,19 @@ type LessonDetail = {
   order_index?: number | null;
 };
 
-const statusLabels: Record<string, string> = {
-  pending: "Cho tao",
-  generating: "Dang tao",
-  ready: "San sang",
-  failed: "Loi",
+type CurriculumDetail = {
+  id: string;
+  project_id: string;
 };
 
-export default function Lession() {
+const statusLabels: Record<string, string> = {
+  pending: "Chờ tạo",
+  generating: "Đang tạo",
+  ready: "Sẵn sàng",
+  failed: "Lỗi",
+};
+
+function Lession() {
   const { moduleId } = useParams();
   const navigate = useNavigate();
 
@@ -33,14 +39,14 @@ export default function Lession() {
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
+  const [projectId, setProjectId] = useState<string | null>(null);
   useEffect(() => {
     let isMounted = true;
 
     const loadLesson = async () => {
       if (!moduleId) {
         setLesson(null);
-        setError("Khong tim thay bai hoc.");
+        setError("Không tìm thấy bài học.");
         setLoading(false);
         return;
       }
@@ -75,12 +81,25 @@ export default function Lession() {
           lessonData = readyResponse.data;
           setLesson(lessonData);
         }
+
+        try {
+          const curriculumResponse = await api.get<CurriculumDetail>(
+            `/curriculums/${lessonData.curriculum_id}`,
+          );
+          if (isMounted) {
+            setProjectId(curriculumResponse.data.project_id);
+          }
+        } catch {
+          if (isMounted) {
+            setProjectId(null);
+          }
+        }
       } catch {
         if (!isMounted) {
           return;
         }
         setLesson(null);
-        setError("Khong the tai bai hoc nay.");
+        setError("Không thể tải bài học này.");
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -100,7 +119,7 @@ export default function Lession() {
       return;
     }
 
-    const confirmed = window.confirm("Ban co chac chan muon xoa bai hoc nay?");
+    const confirmed = window.confirm("Bạn có chắc chắn muốn xóa bài học này?");
     if (!confirmed) {
       return;
     }
@@ -109,16 +128,18 @@ export default function Lession() {
       setDeleting(true);
       setError(null);
       await api.delete(`/curriculum-modules/module/${moduleId}`);
-      navigate("/projects");
+      navigate(projectId ? `/projects/${projectId}` : "/projects");
     } catch {
-      setError("Khong the xoa bai hoc nay.");
+      setError("Không thể xóa bài học.");
     } finally {
       setDeleting(false);
     }
   };
 
-  const statusLabel = statusLabels[lesson?.generate_status ?? "pending"] ?? "Cho tao";
-  const headingTitle = lesson?.title ?? "Bai hoc AI";
+  const statusLabel = statusLabels[lesson?.generate_status ?? "pending"] ?? "Chờ tạo";
+  const headingTitle = lesson?.title ?? "Bài học";
+
+  const backToProjectLink = projectId ? `/projects/${projectId}` : "/projects";
 
   return (
     <main className="lession">
@@ -130,18 +151,18 @@ export default function Lession() {
         <header className="lession-header__title">
           <div className="lession-header__head">
             <div className="lession-header__copy">
-              <p className="lession-detail__eyebrow">Lesson Detail</p>
+              <p className="lession-detail__eyebrow">Chi tiết bài học</p>
               <h2 className="lession-header__heading">{headingTitle}</h2>
               <p className="lession-header__description">
-                Trang nay hien thi noi dung chi tiet cua mot bai hoc trong project.
+                Trang này hiển thị chi tiết bài học trong dự án của bạn.
               </p>
             </div>
           </div>
 
           <div className="lession-header__button">
-            <Link to="/projects" className="lession-header__button--add">
+            <Link to={backToProjectLink} className="lession-header__button--add">
               <ArrowLeft size={16} />
-              Projects
+              Dự án
             </Link>
           </div>
         </header>
@@ -165,12 +186,12 @@ export default function Lession() {
             {loading ? (
               <div className="lession-detail__empty">
                 <Clock3 size={18} />
-                <span>Dang tai bai hoc va hoan thien noi dung...</span>
+                <span>Đang tải bài học và hoàn thiện nội dung...</span>
               </div>
             ) : lesson?.generate_status !== "ready" ? (
               <div className="lession-detail__empty">
                 <Clock3 size={18} />
-                <span>AI dang chuan bi bai hoc nay. Thu tai lai sau.</span>
+                <span>Hệ thống đang chuẩn bị bài học.</span>
               </div>
             ) : (
               <article className="lession-detail__article">
@@ -178,7 +199,7 @@ export default function Lession() {
                   <p className="lession-detail__summary">{lesson.description}</p>
                 ) : null}
                 <div className="lession-detail__content">
-                  {lesson.content ?? "Chua co noi dung bai hoc."}
+                  {lesson.content ?? "Chưa có nội dung bài học."}
                 </div>
               </article>
             )}
@@ -186,20 +207,20 @@ export default function Lession() {
 
           <aside className="lession-section">
             <div className="lession-section__head">
-              <h3>Thong tin bai hoc</h3>
+              <h3>Thông tin bài học</h3>
             </div>
 
             <div className="lession-detail__meta">
               <div className="lession-detail__meta-item">
-                <span>Trang thai</span>
+                <span>Trạng thái</span>
                 <strong>{statusLabel}</strong>
               </div>
               <div className="lession-detail__meta-item">
-                <span>Preview</span>
-                <strong>{lesson?.is_preview ? "Co" : "Khong"}</strong>
+                <span>Bản xem trước</span>
+                <strong>{lesson?.is_preview ? "Có" : "Không"}</strong>
               </div>
               <div className="lession-detail__meta-item">
-                <span>Thu tu</span>
+                <span>Thứ tự</span>
                 <strong>{lesson?.order_index ?? "-"}</strong>
               </div>
             </div>
@@ -211,7 +232,7 @@ export default function Lession() {
                   className="lession-detail__quiz"
                 >
                   <ListChecks size={16} />
-                  Lam bai trac nghiem
+                  Làm bài trắc nghiệm
                 </Link>
               ) : null}
               <button
@@ -221,7 +242,7 @@ export default function Lession() {
                 disabled={loading || deleting}
               >
                 <Trash2 size={16} />
-                {deleting ? "Dang xoa..." : "Xoa bai hoc"}
+                {deleting ? "Đang xóa..." : "Xóa bài học"}
               </button>
             </div>
           </aside>
@@ -230,3 +251,5 @@ export default function Lession() {
     </main>
   );
 }
+
+export default Lession;

@@ -9,7 +9,7 @@ export function RequireAuth() {
     return (
       <main className="auth-shell">
         <section className="auth-card auth-card--compact">
-          <p className="auth-muted">Dang kiem tra phien dang nhap...</p>
+          <p className="auth-muted">Đang kiểm tra phiên đăng nhập...</p>
         </section>
       </main>
     );

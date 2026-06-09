@@ -1,6 +1,7 @@
+import json
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import HTTPException
 from sqlmodel import Session, select, func
@@ -29,6 +30,119 @@ class AICodeFeedbackService:
         return max(80, total_chars // 4)
 
     @staticmethod
+    def _extract_json_object(value: Optional[str]) -> dict[str, Any] | None:
+        if not value:
+            return None
+
+        cleaned = value.strip()
+        if cleaned.startswith("```"):
+            lines = cleaned.splitlines()
+            if lines and lines[0].strip().startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip().startswith("```"):
+                lines = lines[:-1]
+            cleaned = "\n".join(lines).strip()
+
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start == -1 or end <= start:
+            return None
+
+        try:
+            payload = json.loads(cleaned[start : end + 1])
+        except json.JSONDecodeError:
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    @staticmethod
+    def _to_float_or_none(value: Any) -> Optional[float]:
+        if value is None:
+            return None
+        try:
+            score = float(value)
+        except (TypeError, ValueError):
+            return None
+        return max(0.0, min(10.0, score))
+
+    @staticmethod
+    def _to_string_or_none(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        if isinstance(value, list):
+            return "\n".join(str(item) for item in value if item is not None).strip() or None
+        if isinstance(value, dict):
+            return json.dumps(value, ensure_ascii=False)
+        return str(value).strip() or None
+
+    @staticmethod
+    def _average_available_scores(*scores: Optional[float]) -> Optional[float]:
+        available_scores = [score for score in scores if score is not None]
+        if not available_scores:
+            return None
+        return sum(available_scores) / len(available_scores)
+
+    @classmethod
+    def _mark_submission_graded(
+        cls,
+        *,
+        session: Session,
+        submission: CodeSubmissions,
+        code_quality_score: Optional[float],
+        logic_score: Optional[float],
+        performance_score: Optional[float],
+    ) -> Optional[float]:
+        final_score = cls._average_available_scores(
+            code_quality_score,
+            logic_score,
+            performance_score,
+        )
+        if final_score is None:
+            return None
+
+        cls._set_if_present(submission, "score", final_score)
+        cls._set_if_present(submission, "status", "graded")
+        cls._set_if_present(submission, "graded_at", datetime.utcnow())
+        session.add(submission)
+        return final_score
+
+    @classmethod
+    def normalize_feedback_record(cls, feedback: AICodeFeedback) -> bool:
+        payload = cls._extract_json_object(feedback.overview)
+        if not payload:
+            return False
+
+        changed = False
+        text_fields = [
+            "overview",
+            "flow_analysis",
+            "strengths",
+            "weaknesses",
+            "improvement_suggestions",
+        ]
+        score_fields = [
+            "code_quality_score",
+            "logic_score",
+            "performance_score",
+        ]
+
+        for field_name in text_fields:
+            value = cls._to_string_or_none(payload.get(field_name))
+            if value is not None and getattr(feedback, field_name, None) != value:
+                setattr(feedback, field_name, value)
+                changed = True
+
+        overall_score = cls._to_float_or_none(payload.get("overall_score"))
+        for field_name in score_fields:
+            value = cls._to_float_or_none(payload.get(field_name))
+            if value is None:
+                value = overall_score
+            if value is not None and getattr(feedback, field_name, None) != value:
+                setattr(feedback, field_name, value)
+                changed = True
+
+        return changed
+
+    @staticmethod
     def _resolve_project_id(
         *,
         session: Session,
@@ -55,6 +169,7 @@ class AICodeFeedbackService:
         weaknesses: Optional[str] = None,
         model_name: str = "gpt-4o",
         tokens_used: Optional[int] = None,
+        track_usage: Optional[bool] = None,
     ) -> AICodeFeedback:
 
         submission = session.get(CodeSubmissions, submission_id)
@@ -70,7 +185,7 @@ class AICodeFeedbackService:
         if existing:
             raise HTTPException(status_code=400, detail="Feedback already exists")
 
-        track_ai_usage = generated_by == "ai"
+        track_ai_usage = generated_by == "ai" if track_usage is None else track_usage
         project_id = self._resolve_project_id(session=session, submission=submission)
         estimated_tokens = tokens_used or self._estimate_tokens(
             overview,
@@ -91,23 +206,10 @@ class AICodeFeedbackService:
                 action_type="generate_feedback",
             )
 
-        flow_lines: list[str] = []
-        if flow_analysis:
-            flow_lines.append(flow_analysis)
-        if strengths:
-            flow_lines.append(f"Strengths: {strengths}")
-        if weaknesses:
-            flow_lines.append(f"Weaknesses: {weaknesses}")
-        if all(score is not None for score in [code_quality_score, logic_score, performance_score]):
-            flow_lines.append(
-                "Scores - code_quality: "
-                f"{code_quality_score}, logic: {logic_score}, performance: {performance_score}"
-            )
-
         feedback = AICodeFeedback(
             submission_id=submission_id,
             overview=overview,
-            flow_analysis="\n".join(flow_lines) if flow_lines else None,
+            flow_analysis=flow_analysis,
             improvement_suggestions=improvement_suggestions,
             created_at=datetime.utcnow()
         )
@@ -119,24 +221,17 @@ class AICodeFeedbackService:
         self._set_if_present(feedback, "performance_score", performance_score)
         self._set_if_present(feedback, "strengths", strengths)
         self._set_if_present(feedback, "weaknesses", weaknesses)
+        self.normalize_feedback_record(feedback)
 
         session.add(feedback)
 
-        if all([
-            code_quality_score is not None,
-            logic_score is not None,
-            performance_score is not None
-        ]):
-            final_score = (
-                code_quality_score +
-                logic_score +
-                performance_score
-            ) / 3
-
-            self._set_if_present(submission, "score", final_score)
-            self._set_if_present(submission, "status", "graded")
-            self._set_if_present(submission, "graded_at", datetime.utcnow())
-            session.add(submission)
+        self._mark_submission_graded(
+            session=session,
+            submission=submission,
+            code_quality_score=getattr(feedback, "code_quality_score", None),
+            logic_score=getattr(feedback, "logic_score", None),
+            performance_score=getattr(feedback, "performance_score", None),
+        )
 
         session.commit()
         session.refresh(feedback)
@@ -202,17 +297,18 @@ class AICodeFeedbackService:
         self._set_if_present(feedback, "performance_score", performance_score)
         self._set_if_present(feedback, "strengths", strengths)
         self._set_if_present(feedback, "weaknesses", weaknesses)
+        self.normalize_feedback_record(feedback)
 
         if hasattr(feedback, "submission_id"):
             submission = session.get(CodeSubmissions, feedback.submission_id)
-            if submission and all(
-                score is not None for score in [code_quality_score, logic_score, performance_score]
-            ):
-                final_score = (code_quality_score + logic_score + performance_score) / 3
-                self._set_if_present(submission, "score", final_score)
-                self._set_if_present(submission, "status", "graded")
-                self._set_if_present(submission, "graded_at", datetime.utcnow())
-                session.add(submission)
+            if submission:
+                self._mark_submission_graded(
+                    session=session,
+                    submission=submission,
+                    code_quality_score=getattr(feedback, "code_quality_score", None),
+                    logic_score=getattr(feedback, "logic_score", None),
+                    performance_score=getattr(feedback, "performance_score", None),
+                )
 
         session.add(feedback)
         session.commit()

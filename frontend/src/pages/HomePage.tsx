@@ -228,7 +228,6 @@ export default function HomePage() {
       <div className="home-page__container">
         <section className="home-page__hero">
           <div className="home-page__hero-copy">
-            <span className="home-page__eyebrow">FPT University platform</span>
             <h1 className="home-page__title">
               LOC Tracking System for programming courses
             </h1>

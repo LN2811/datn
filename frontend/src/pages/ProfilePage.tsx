@@ -19,6 +19,11 @@ type ProfilePayload = {
   contact_email: string | null;
   contact_phone: string | null;
 };
+type AiUsage = {
+  token_limit: number | null;
+  used_tokens: number;
+  remaining_tokens: number |null;
+}
 
 const getDisplayName = (accountName?: string | null, email?: string | null) => {
   if (accountName?.trim()) {
@@ -73,7 +78,7 @@ const getErrorMessage = (error: unknown) => {
     return error.message;
   }
 
-  return 'Khong the cap nhat thong tin. Vui long thu lai.';
+  return 'Không thể cập nhật thông tin. Vui lòng thử lại.';
 };
 
 const emptyToNull = (value: string) => {
@@ -92,7 +97,33 @@ export function ProfilePage() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [aiusage, setaiusage] = useState<AiUsage | null>(null);
+  const [loading, setloading] = useState(true);
 
+  const fetchUsage = async() =>{
+    try{
+      setloading(true);
+      setErrorMessage("");
+      const token = localStorage.getItem("token");
+      const response = await api.get<AiUsage>("/ai-usage-logs/ai_usage/me", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      setaiusage(response.data);
+    }catch{
+      setErrorMessage("Không thể tải thông tin sử dụng.");
+    }finally{
+      setloading(false);
+    }
+  };
+  useEffect(() =>{
+    fetchUsage();
+  }, []);
+  const usagePercent =
+  aiusage?.token_limit && aiusage.token_limit > 0
+    ? Math.min((aiusage.used_tokens / aiusage.token_limit) * 100, 100)
+    : 0;
   useEffect(() => {
     setAccountName(user?.account_name ?? '');
     setContactEmail(user?.contact_email ?? '');
@@ -143,7 +174,7 @@ export function ProfilePage() {
         <header className="profile-page__topbar">
           <Link className="profile-page__back" to="/dashboard">
             <ArrowLeft size={18} />
-            Dashboard
+            Bảng điều khiển
           </Link>
           {user?.is_superuser ? (
             <Link className="profile-page__admin" to="/admin">
@@ -163,9 +194,9 @@ export function ProfilePage() {
               </div>
             )}
             <div>
-              <span className="profile-page__eyebrow">Tai khoan ca nhan</span>
+              <span className="profile-page__eyebrow">Tài khoản cá nhân</span>
               <h1>{displayName}</h1>
-              <p>{user?.email ?? 'Khong co email dang nhap'}</p>
+              <p>{user?.email ?? 'Không có email đăng nhập'}</p>
             </div>
           </div>
 
@@ -191,23 +222,23 @@ export function ProfilePage() {
             }}
           >
             <label className="profile-page__field" htmlFor="profile-account-name">
-              <span>Ten hien thi</span>
+              <span>Tên hiển thị</span>
               <input
                 id="profile-account-name"
                 type="text"
                 value={accountName}
                 onChange={(event) => setAccountName(event.target.value)}
-                placeholder="Nhap ten hien thi"
+                placeholder="Nhập tên hiển thị"
               />
             </label>
 
             <label className="profile-page__field" htmlFor="profile-email">
-              <span>Email dang nhap</span>
+              <span>Email đăng nhập</span>
               <input id="profile-email" type="email" value={user?.email ?? ''} readOnly />
             </label>
 
             <label className="profile-page__field" htmlFor="profile-contact-email">
-              <span>Email lien he</span>
+              <span>Email liên hệ</span>
               <input
                 id="profile-contact-email"
                 type="email"
@@ -218,24 +249,45 @@ export function ProfilePage() {
             </label>
 
             <label className="profile-page__field" htmlFor="profile-contact-phone">
-              <span>So dien thoai</span>
+              <span>Số điện thoại</span>
               <input
                 id="profile-contact-phone"
                 type="tel"
                 value={contactPhone}
                 onChange={(event) => setContactPhone(event.target.value)}
-                placeholder="Nhap so dien thoai lien he"
+                placeholder="Nhập số điện thoại liên hệ"
               />
             </label>
+            <div className="usage-header">
+              <span className='usage-head'>Dung lượng sử dụng</span>
+              <span>
+                {aiusage
+                  ? `${aiusage.used_tokens.toLocaleString()} / ${
+                      aiusage.token_limit?.toLocaleString() ?? '∞'
+                    }`
+                  : loading
+                    ? 'Đang tải...'
+                    : 'Chưa có dữ liệu'}
+              </span>
+            </div>
 
+            <div className="usage-bar">
+              <div
+                className="usage-fill"
+                style={{
+                  width: aiusage ? `${usagePercent}%` : "0%",
+                }}
+              />
+            </div>
+        
             <div className="profile-page__actions">
               <button className="profile-page__save" type="submit" disabled={isSaving}>
                 <Save size={18} />
-                {isSaving ? 'Dang luu...' : 'Luu thay doi'}
+                {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
               </button>
               <Link className="profile-page__secondary" to="/dashboard">
                 <ArrowLeft size={18} />
-                Quay lai dashboard
+                Quay lại dashboard
               </Link>
               <button
                 className="profile-page__logout"
@@ -244,7 +296,7 @@ export function ProfilePage() {
                 disabled={isLoggingOut}
               >
                 <LogOut size={18} />
-                {isLoggingOut ? 'Dang dang xuat...' : 'Dang xuat'}
+                {isLoggingOut ? 'Đang đăng xuất...' : 'Đăng xuất'}
               </button>
             </div>
           </form>

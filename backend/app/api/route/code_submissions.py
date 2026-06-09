@@ -69,6 +69,19 @@ def get_submission_history(
     )
 
 
+@router.post("/{submission_id}/retry")
+def retry_submission_grading(
+    submission_id: uuid.UUID,
+    session: SessionDep,
+    current_user: Users = Depends(Authen.get_current_user),
+):
+    return CodeSubmissionService(session).retry_ai_grading(
+        submission_id=submission_id,
+        user_id=current_user.id,
+        is_superuser=current_user.is_superuser,
+    )
+
+
 @router.get("/{submission_id}")
 def get_submission_detail(
     submission_id: uuid.UUID,

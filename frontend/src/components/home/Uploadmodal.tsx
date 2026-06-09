@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { api } from "@/api/axios";
@@ -21,8 +21,22 @@ export default function UploadModal({
   const [title, setTitle] = useState("");
   const [externalLink, setExternalLink] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const resetForm = () => {
+    setTitle("");
+    setExternalLink("");
+    setFile(null);
+    setFileInputKey((currentKey) => currentKey + 1);
+    setError(null);
+  };
+
+  const closeModal = useCallback(() => {
+    resetForm();
+    onClose();
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) {
@@ -34,7 +48,7 @@ export default function UploadModal({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !uploading) {
-        onClose();
+        closeModal();
       }
     };
 
@@ -44,7 +58,7 @@ export default function UploadModal({
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open, onClose, uploading]);
+  }, [open, closeModal, uploading]);
 
   useEffect(() => {
     if (!open) {
@@ -65,17 +79,17 @@ export default function UploadModal({
     setError(null);
 
     if (!trimmedTitle) {
-      setError("Please enter a title.");
+      setError("Vui lòng nhập tiêu đề tài liệu.");
       return;
     }
 
     if (!file && !trimmedExternalLink) {
-      setError("Please provide either a file or an external link.");
+      setError("Vui lòng chọn tệp hoặc nhập liên kết bên ngoài.");
       return;
     }
 
     if (file && trimmedExternalLink) {
-      setError("Please provide only one of file or external link.");
+      setError("Chỉ chọn một trong hai: tệp hoặc liên kết bên ngoài.");
       return;
     }
 
@@ -106,10 +120,11 @@ export default function UploadModal({
       setTitle("");
       setExternalLink("");
       setFile(null);
+      setFileInputKey((currentKey) => currentKey + 1);
       onUploadSuccess();
-      onClose();
+      closeModal();
     } catch {
-      setError("Failed to upload material.");
+      setError("Không thể tải tài liệu lên.");
     } finally {
       setUploading(false);
     }
@@ -120,7 +135,7 @@ export default function UploadModal({
       className="upload-modal"
       onClick={() => {
         if (!uploading) {
-          onClose();
+          closeModal();
         }
       }}
       role="presentation"
@@ -133,13 +148,13 @@ export default function UploadModal({
         aria-labelledby="upload-modal-title"
       >
         <div className="upload-modal__header">
-          <h2 id="upload-modal-title">Upload Learning Material</h2>
+          <h2 id="upload-modal-title">Tải tài liệu học tập</h2>
           <button
             type="button"
             className="upload-modal__close"
-            onClick={onClose}
+            onClick={closeModal}
             disabled={uploading}
-            aria-label="Close upload modal"
+            aria-label="Đóng cửa sổ tải tài liệu"
           >
             x
           </button>
@@ -148,18 +163,18 @@ export default function UploadModal({
         {error ? <p className="upload-modal__error">{error}</p> : null}
 
         <label className="upload-modal__field">
-          <span>Title</span>
+          <span>Tiêu đề</span>
           <input
             className="upload-modal__input"
             type="text"
-            placeholder="Enter material title"
+            placeholder="Nhập tiêu đề tài liệu"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
           />
         </label>
 
         <label className="upload-modal__field">
-          <span>External Link</span>
+          <span>Liên kết bên ngoài</span>
           <input
             className="upload-modal__input"
             type="url"
@@ -170,10 +185,11 @@ export default function UploadModal({
         </label>
 
         <label className="upload-modal__field">
-          <span>File</span>
+          <span>Tệp</span>
           <input
             className="upload-modal__input"
             type="file"
+            key={fileInputKey}
             accept=".pdf,.docx,.pptx,.txt,.jpg,.jpeg,.png"
             onChange={(event) =>
               setFile(event.target.files ? event.target.files[0] : null)
@@ -185,10 +201,10 @@ export default function UploadModal({
           <button
             type="button"
             className="upload-modal__button upload-modal__button--ghost"
-            onClick={onClose}
+            onClick={closeModal}
             disabled={uploading}
           >
-            Cancel
+            Hủy
           </button>
           <button
             type="button"
@@ -196,7 +212,7 @@ export default function UploadModal({
             onClick={handleUpload}
             disabled={uploading}
           >
-            {uploading ? "Uploading..." : "Upload"}
+            {uploading ? "Đang tải lên..." : "Tải lên"}
           </button>
         </div>
       </div>

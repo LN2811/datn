@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import HTTPException, Request
 from sqlalchemy import inspect
 from sqlalchemy.exc import SQLAlchemyError
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from app.models.models import (
     AIAnalysis,
@@ -25,6 +25,8 @@ from app.models.models import (
     QuestionOptions,
     Questions,
     Users,
+    PricingPlans,
+    UserSubscriptions,
 )
 
 
@@ -532,6 +534,7 @@ class ProjectService:
         user_id: uuid.UUID | None = None,
     ) -> dict:
         owner_id = self._resolve_user_id(request=request, user_id=user_id)
+        self.project_limit(session=session, user_id=owner_id)
         payload = self._dump_payload(project_data)
 
         new_project = Projects(
@@ -760,3 +763,55 @@ class ProjectService:
         session.delete(project)
         session.commit()
         return {"message": "Project deleted successfully"}
+
+    def _get_current_plan(
+            self,
+            session: Session,
+            user_id: uuid.UUID,
+    ):
+        now = datetime.utcnow()
+        subscriptions = session.exec(
+            select(UserSubscriptions).where(UserSubscriptions.user_id == user_id)
+        ).all()
+        active_subscriptions = [
+            subscription
+            for subscription in subscriptions
+            if subscription.start_date <= now
+            and (subscription.end_date is None or subscription.end_date >= now)
+        ]
+        active_subscriptions.sort(
+            key=lambda subscription: subscription.end_date or datetime.max,
+            reverse=True,
+        )
+
+        for subscription in active_subscriptions:
+            plan = session.get(PricingPlans, subscription.plan_id)
+            if plan and plan.is_active:
+                return plan
+    
+        free_plan = session.exec(
+            select(PricingPlans)
+            .where(PricingPlans.is_active == True, PricingPlans.price == 0)
+            .order_by(PricingPlans.created_at.desc())
+        ).first()
+        return free_plan
+    
+    def project_limit (
+        self,
+        session: Session,
+        user_id: uuid.UUID,
+    ) -> None:
+        plan = self._get_current_plan(session = session, user_id = user_id)
+        if not plan:
+            raise HTTPException(status_code=403, detail="No active subscription plan found")
+        max_projects = getattr(plan, "max_project", None)
+        if not max_projects:
+            return
+        current_project_count = session.exec(
+            select(func.count(Projects.id)).where(Projects.owner_id == user_id)
+        ).one()
+        if current_project_count >= max_projects:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Project creation limit reached for your current plan. Please upgrade to create more projects.",
+            )

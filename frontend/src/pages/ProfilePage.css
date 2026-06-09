@@ -259,3 +259,52 @@
     width: 100%;
   }
 }
+.ai-usage-card {
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 18px;
+  background: #15161b;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.usage-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+.usage-bar {
+  width: 100%;
+  height: 15px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+  inset 0 1px 2px rgba(255,255,255,0.08),
+  inset 0 -1px 2px rgba(0,0,0,0.25);
+  overflow: hidden;
+
+}
+
+.usage-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #4f46e5, #8b5cf6);
+  border-right: 1px solid rgba(255, 255, 255, 0.35);
+  transition: width 0.3s ease;
+}
+
+.usage-remaining {
+  margin-top: 10px;
+  font-size: 13px;
+  opacity: 0.8;
+}
+.usage-fill {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+.usage-head{
+  font-size: 16px;
+  font-weight: 700;
+}

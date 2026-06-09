@@ -57,7 +57,34 @@ type QuizSubmitResponse = {
   score: number;
   correct_count: number;
   total_questions: number;
+  evaluation?: {
+    readiness_level: 'high' | 'medium' | 'low' | string;
+    title: string;
+    summary: string;
+    score: number;
+    correct_count: number;
+    total_questions: number;
+    recommendations: string[];
+  } | null;
+  assessment_result?: {
+    id: string;
+    total_score?: number | null;
+    readiness_level?: string | null;
+    created_at?: string | null;
+  } | null;
   results: QuizResultItem[];
+};
+
+const getEvaluationTone = (level?: string | null) => {
+  if (level === 'high') {
+    return 'high';
+  }
+
+  if (level === 'medium') {
+    return 'medium';
+  }
+
+  return 'low';
 };
 
 const optionLetters = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -224,6 +251,30 @@ export function QuizPage() {
               </p>
             </div>
             <CheckCircle2 size={28} />
+          </section>
+        ) : null}
+
+        {result?.evaluation ? (
+          <section
+            className={`quiz-page__evaluation quiz-page__evaluation--${getEvaluationTone(
+              result.evaluation.readiness_level,
+            )}`}
+          >
+            <div className="quiz-page__evaluation-head">
+              <div>
+                <span>Danh gia</span>
+                <h2>{result.evaluation.title}</h2>
+              </div>
+              <strong>{result.evaluation.readiness_level}</strong>
+            </div>
+            <p>{result.evaluation.summary}</p>
+            {result.evaluation.recommendations.length ? (
+              <ul>
+                {result.evaluation.recommendations.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : null}
           </section>
         ) : null}
 
